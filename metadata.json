@@ -1,0 +1,5 @@
+{
+  "name": "PingPong Pro Manager",
+  "description": "A comprehensive web-based management system for table tennis clubs featuring multi-club support, real-time player check-in/out, service management, expense tracking, and advanced reporting.",
+  "requestFramePermissions": []
+}
