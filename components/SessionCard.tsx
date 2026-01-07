@@ -26,7 +26,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
     return end >= now;
   }, [player.membershipEndDate]);
 
-  // Filter only active services for the selection menu
   const activeServices = useMemo(() => {
     return services.filter(s => s.status === ServiceStatus.ACTIVE);
   }, [services]);
@@ -59,8 +58,8 @@ const SessionCard: React.FC<SessionCardProps> = ({
       }
     }
 
-    const newSS: SessionService = {
-      id: `ss-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    // Không truyền ID ở đây, API client sẽ làm sạch data để Supabase tự tạo ID
+    const newSS: any = {
       sessionId: session.id,
       serviceId: service.id,
       quantity: 1,
@@ -72,7 +71,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
 
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col h-full hover:shadow-xl transition-all duration-300 relative group">
-      {/* Header Section */}
       <div className="p-5 border-b border-gray-50">
         <div className="flex justify-between items-start mb-2">
           <div className="flex items-center gap-3">
@@ -105,7 +103,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
         </div>
       </div>
 
-      {/* Services Section */}
       <div className="flex-1 p-5 bg-gray-50/40 relative">
         <div className="flex justify-between items-center mb-4">
           <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Dịch vụ & Tiền sân</h5>
@@ -120,7 +117,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
               Thêm mới
             </button>
 
-            {/* Absolute Dropdown Menu */}
             {showServices && (
               <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 animate-in fade-in zoom-in duration-150 origin-top-right py-2 max-h-64 overflow-y-auto">
                 <div className="px-4 py-2 border-b border-gray-50 mb-1">
@@ -180,7 +176,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
         </div>
       </div>
 
-      {/* Footer / Total Section */}
       <div className="p-5 bg-white border-t border-gray-100 rounded-b-3xl">
         <div className="flex justify-between items-center mb-5">
           <span className="text-gray-400 text-xs font-black uppercase tracking-widest">Thanh toán tạm tính</span>
@@ -196,7 +191,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
         </button>
       </div>
       
-      {/* Overlay click-away for services menu */}
       {showServices && (
         <div 
           className="fixed inset-0 z-40 bg-transparent" 

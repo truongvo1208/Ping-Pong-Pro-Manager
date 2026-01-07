@@ -1,214 +1,235 @@
 
-import { Club, Player, Service, Session, SessionService, Expense, MembershipPayment, SessionStatus, ServiceStatus } from '../types';
-import { CLUBS, INITIAL_PLAYERS, INITIAL_SERVICES } from '../constants';
+import { createClient } from '@supabase/supabase-js';
+import { Club, Player, Service, Session, SessionService, Expense, MembershipPayment, SessionStatus } from '../types';
 
-const MAX_RETRIES = 1;
-const INITIAL_BACKOFF = 200;
+// Cấu hình kết nối
+const SUPABASE_URL = 'https://vtvgflsxzwvekivjeykx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0dmdmbHN4end2ZWtpdmpleWt4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3MDA3NDgsImV4cCI6MjA4MzI3Njc0OH0.fYCh3u2McrWDU726R_51Ni6EyKxLExs3t3qxnd6N4CU';
 
-// Mock Database State for Offline/Demo Mode
-const getLocalData = (key: string, defaultValue: any) => {
-  try {
-    const saved = localStorage.getItem(`pingpong_pro_${key}`);
-    const data = saved ? JSON.parse(saved) : defaultValue;
-    
-    // ĐẶC BIỆT: Đồng bộ mật khẩu admin từ constants nếu nó khác với localStorage
-    // Điều này giúp tránh việc bị kẹt mật khẩu cũ khi dev/update code
-    if (key === 'clubs' && Array.isArray(data)) {
-      return data.map(localClub => {
-        const defaultClub = (defaultValue as Club[]).find(c => c.username === localClub.username);
-        if (defaultClub && defaultClub.password !== localClub.password) {
-          return { ...localClub, password: defaultClub.password };
-        }
-        return localClub;
-      });
-    }
-    
-    return data;
-  } catch (e) {
-    return defaultValue;
-  }
-};
-
-const saveLocalData = (key: string, data: any) => {
-  localStorage.setItem(`pingpong_pro_${key}`, JSON.stringify(data));
-};
-
-let mockDb = {
-  clubs: getLocalData('clubs', CLUBS),
-  players: getLocalData('players', INITIAL_PLAYERS),
-  services: getLocalData('services', INITIAL_SERVICES),
-  sessions: getLocalData('sessions', []),
-  expenses: getLocalData('expenses', []),
-  membershipPayments: getLocalData('membership', [])
-};
-
-const syncDb = () => {
-  Object.keys(mockDb).forEach(key => saveLocalData(key, (mockDb as any)[key]));
-};
-
-/**
- * Enhanced apiFetch with Mock Fallback.
- */
-async function apiFetch(endpoint: string, options: RequestInit = {}, retryCount = 0): Promise<any> {
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-  const url = `/api/${cleanEndpoint}`;
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: { 
-        'Content-Type': 'application/json', 
-        'Accept': 'application/json', 
-        ...options.headers 
-      },
-    });
-
-    if (response.status === 404 || response.status >= 500) {
-      throw new Error(`BACKEND_OFFLINE:${response.status}`);
-    }
-
-    const text = await response.text();
-    try {
-      return text ? JSON.parse(text) : {};
-    } catch (parseError) {
-      throw new Error('BACKEND_OFFLINE:InvalidJSON');
-    }
-  } catch (error: any) {
-    const isOffline = 
-      error.message?.startsWith('BACKEND_OFFLINE') || 
-      error.name === 'TypeError' || 
-      error.name === 'SyntaxError';
-    
-    if (isOffline) {
-      return new Promise((resolve, reject) => {
-        try {
-          const result = handleMockRequest(cleanEndpoint, options);
-          resolve(result);
-        } catch (mockError) {
-          reject(mockError);
-        }
-      });
-    }
-
-    if (retryCount < MAX_RETRIES) {
-      await new Promise(r => setTimeout(r, INITIAL_BACKOFF * (retryCount + 1)));
-      return apiFetch(endpoint, options, retryCount + 1);
-    }
-    throw error;
-  }
+// Khởi tạo client với kiểm tra an toàn
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error("Supabase URL hoặc Anon Key bị thiếu! Vui lòng kiểm tra lại cấu hình.");
 }
 
-function handleMockRequest(endpoint: string, options: RequestInit): any {
-  const method = options.method || 'GET';
-  const body = options.body ? JSON.parse(options.body as string) : null;
-
-  if (endpoint === 'health') return { status: 'online', mode: 'demo' };
-  
-  if (endpoint === 'auth/login') {
-    if (body.username === '__check__') throw new Error("Check connection");
-    
-    const club = mockDb.clubs.find((c: Club) => c.username === body.username && c.password === body.password);
-    if (!club) throw new Error("Tài khoản hoặc mật khẩu không đúng.");
-    return club;
-  }
-
-  if (endpoint.startsWith('players')) {
-    if (method === 'GET') return mockDb.players;
-    if (method === 'POST') {
-      const newPlayer = { ...body, id: `p-${Date.now()}`, createdAt: new Date().toISOString() };
-      mockDb.players = [newPlayer, ...mockDb.players];
-      syncDb();
-      return newPlayer;
-    }
-  }
-
-  if (endpoint.startsWith('services')) {
-    if (method === 'GET') return mockDb.services;
-    if (method === 'POST') {
-      const newService = { ...body, id: `s-${Date.now()}` };
-      mockDb.services = [...mockDb.services, newService];
-      syncDb();
-      return newService;
-    }
-  }
-
-  if (endpoint.startsWith('sessions')) {
-    if (endpoint === 'sessions/checkin' && method === 'POST') {
-      const newSession: Session = {
-        id: `sess-${Date.now()}`,
-        clubId: body.clubId,
-        playerId: body.playerId,
-        checkInTime: new Date().toISOString(),
-        status: SessionStatus.PLAYING,
-        totalAmount: 0
-      };
-      mockDb.sessions = [newSession, ...mockDb.sessions];
-      syncDb();
-      return newSession;
-    }
-    if (endpoint.includes('/checkout') && method === 'POST') {
-      const id = endpoint.split('/')[1];
-      mockDb.sessions = mockDb.sessions.map((s: Session) => 
-        s.id === id ? { ...s, status: SessionStatus.FINISHED, totalAmount: body.totalAmount, checkOutTime: new Date().toISOString() } : s
-      );
-      syncDb();
-      return mockDb.sessions.find((s: Session) => s.id === id);
-    }
-    return mockDb.sessions;
-  }
-
-  if (endpoint.startsWith('expenses')) {
-    if (method === 'GET') return mockDb.expenses;
-    if (method === 'POST') {
-      const newExp = { ...body, id: `exp-${Date.now()}` };
-      mockDb.expenses = [newExp, ...mockDb.expenses];
-      syncDb();
-      return newExp;
-    }
-  }
-
-  return [];
-}
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export const API = {
+  system: {
+    /**
+     * Kiểm tra trạng thái thực tế của Database
+     */
+    testConnection: async () => {
+      try {
+        const start = performance.now();
+        // Thử truy vấn bảng clubs - bảng quan trọng nhất để login
+        const { data, error, status } = await supabase
+          .from('clubs')
+          .select('id')
+          .limit(1);
+
+        const end = performance.now();
+        const latency = Math.round(end - start);
+
+        if (error) {
+          // Lỗi từ Supabase (ví dụ: bảng không tồn tại hoặc sai Key)
+          return { 
+            success: false, 
+            message: `Lỗi Database (${error.code}): ${error.message}`,
+            latency 
+          };
+        }
+
+        return { 
+          success: true, 
+          message: "Kết nối Supabase Online", 
+          latency 
+        };
+      } catch (err: any) {
+        // Lỗi mạng hoặc lỗi code nghiêm trọng
+        return { 
+          success: false, 
+          message: "Không thể kết nối Internet hoặc lỗi URL Supabase",
+          latency: 0 
+        };
+      }
+    }
+  },
+
   auth: {
-    login: (username: string, pass: string) => 
-      apiFetch('auth/login', { 
-        method: 'POST', 
-        body: JSON.stringify({ username, password: pass }) 
-      }),
+    login: async (username: string, pass: string): Promise<Club> => {
+      const { data, error } = await supabase
+        .from('clubs')
+        .select('*')
+        .eq('username', username)
+        .eq('password', pass)
+        .maybeSingle(); // maybeSingle trả về null thay vì lỗi nếu không tìm thấy
+      
+      if (error) throw new Error(`Lỗi hệ thống: ${error.message}`);
+      if (!data) throw new Error("Sai tài khoản hoặc mật khẩu");
+      
+      return data as Club;
+    },
   },
+
   clubs: {
-    list: () => apiFetch('clubs'),
-    create: (data: any) => apiFetch('clubs', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: any) => apiFetch(`clubs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    remove: (id: string) => apiFetch(`clubs/${id}`, { method: 'DELETE' }),
+    list: async (): Promise<Club[]> => {
+      const { data, error } = await supabase.from('clubs').select('*').order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    create: async (data: Partial<Club>): Promise<Club> => {
+      const { data: result, error } = await supabase.from('clubs').insert([data]).select().single();
+      if (error) throw error;
+      return result;
+    },
+    update: async (id: string, data: Partial<Club>): Promise<Club> => {
+      const { data: result, error } = await supabase.from('clubs').update(data).eq('id', id).select().single();
+      if (error) throw error;
+      return result;
+    },
+    remove: async (id: string): Promise<void> => {
+      const { error } = await supabase.from('clubs').delete().eq('id', id);
+      if (error) throw error;
+    },
   },
+
   players: {
-    list: (clubId: string) => apiFetch(`players?clubId=${clubId || ''}`),
-    create: (data: any) => apiFetch('players', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: any) => apiFetch(`players/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    list: async (clubId?: string): Promise<Player[]> => {
+      let query = supabase.from('players').select('*');
+      if (clubId) query = query.eq('clubId', clubId);
+      const { data, error } = await query.order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    create: async (data: Partial<Player>): Promise<Player> => {
+      // Để database tự tạo ID nếu ID không được cung cấp
+      const { data: result, error } = await supabase.from('players').insert([data]).select().single();
+      if (error) throw error;
+      return result;
+    },
+    update: async (id: string, data: Partial<Player>): Promise<Player> => {
+      const { data: result, error } = await supabase.from('players').update(data).eq('id', id).select().single();
+      if (error) throw error;
+      return result;
+    },
   },
+
   services: {
-    list: (clubId: string) => apiFetch(`services?clubId=${clubId || ''}`),
-    create: (data: any) => apiFetch('services', { method: 'POST', body: JSON.stringify(data) }),
-    update: (id: string, data: Partial<Service>) => apiFetch(`services/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    list: async (clubId?: string): Promise<Service[]> => {
+      let query = supabase.from('services').select('*');
+      if (clubId) query = query.eq('clubId', clubId);
+      const { data, error } = await query.order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    create: async (data: Partial<Service>): Promise<Service> => {
+      const { data: result, error } = await supabase.from('services').insert([data]).select().single();
+      if (error) throw error;
+      return result;
+    },
+    update: async (id: string, data: Partial<Service>): Promise<Service> => {
+      const { data: result, error } = await supabase.from('services').update(data).eq('id', id).select().single();
+      if (error) throw error;
+      return result;
+    },
   },
+
   sessions: {
-    list: (clubId: string) => apiFetch(`sessions?clubId=${clubId || ''}`),
-    checkIn: (clubId: string, playerId: string) => 
-      apiFetch('sessions/checkin', { method: 'POST', body: JSON.stringify({ clubId, playerId }) }),
-    addService: (sessionId: string, data: any) => 
-      apiFetch(`sessions/${sessionId}/services`, { method: 'POST', body: JSON.stringify(data) }),
-    checkOut: (id: string, totalAmount: number) => 
-      apiFetch(`sessions/${id}/checkout`, { method: 'POST', body: JSON.stringify({ totalAmount }) }),
+    list: async (clubId?: string): Promise<any[]> => {
+      let query = supabase.from('sessions').select('*, session_services(*)');
+      if (clubId) query = query.eq('clubId', clubId);
+      const { data, error } = await query.order('checkInTime', { ascending: false });
+      if (error) throw error;
+      
+      return (data || []).map(s => ({
+        ...s,
+        sessionServices: s.session_services
+      }));
+    },
+    checkIn: async (clubId: string, playerId: string): Promise<any> => {
+      const { data, error } = await supabase
+        .from('sessions')
+        .insert([{
+          clubId,
+          playerId,
+          checkInTime: new Date().toISOString(),
+          status: SessionStatus.PLAYING,
+          totalAmount: 0
+        }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return { ...data, sessionServices: [] };
+    },
+    addService: async (sessionId: string, data: Partial<SessionService>): Promise<SessionService> => {
+      // Loại bỏ ID cũ để database tự generate ID đồng bộ
+      const { id, ...cleanData } = data as any;
+      const { data: result, error } = await supabase
+        .from('session_services')
+        .insert([{ ...cleanData, sessionId }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return result;
+    },
+    removeService: async (id: string): Promise<void> => {
+      const { error } = await supabase.from('session_services').delete().eq('id', id);
+      if (error) throw error;
+    },
+    checkOut: async (id: string, totalAmount: number): Promise<any> => {
+      const { data, error } = await supabase
+        .from('sessions')
+        .update({
+          status: SessionStatus.FINISHED,
+          totalAmount,
+          checkOutTime: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
   },
+
   expenses: {
-    list: (clubId: string) => apiFetch(`expenses?clubId=${clubId || ''}`),
-    create: (data: any) => apiFetch('expenses', { method: 'POST', body: JSON.stringify(data) }),
-    remove: (id: string) => apiFetch(`expenses/${id}`, { method: 'DELETE' }),
+    list: async (clubId?: string): Promise<Expense[]> => {
+      let query = supabase.from('expenses').select('*');
+      if (clubId) query = query.eq('clubId', clubId);
+      const { data, error } = await query.order('date', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    create: async (data: Partial<Expense>): Promise<Expense> => {
+      const { data: result, error } = await supabase.from('expenses').insert([data]).select().single();
+      if (error) throw error;
+      return result;
+    },
+    remove: async (id: string): Promise<void> => {
+      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      if (error) throw error;
+    },
   },
+
   membership: {
-    create: (data: any) => apiFetch('membership-payments', { method: 'POST', body: JSON.stringify(data) }),
+    list: async (clubId?: string): Promise<MembershipPayment[]> => {
+      let query = supabase.from('membership_payments').select('*');
+      if (clubId) query = query.eq('clubId', clubId);
+      const { data, error } = await query.order('paymentDate', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    create: async (data: Partial<MembershipPayment>): Promise<MembershipPayment> => {
+      const { data: result, error } = await supabase.from('membership_payments').insert([data]).select().single();
+      if (error) throw error;
+      
+      // Cập nhật ngày hết hạn cho người chơi
+      await supabase.from('players').update({ membershipEndDate: data.endDate }).eq('id', data.playerId);
+      
+      return result;
+    },
   }
 };

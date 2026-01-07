@@ -1,19 +1,17 @@
+
 {
   "name": "pingpong-pro-manager",
-  "version": "1.0.3",
-  "description": "Hệ thống quản lý CLB bóng bàn chuyên nghiệp",
+  "version": "1.0.9",
+  "description": "Hệ thống quản lý CLB bóng bàn chuyên nghiệp - Bản SQLite Pro",
   "main": "backend/server.js",
   "scripts": {
-    "start": "npx prisma db push --schema=backend/schema.prisma --accept-data-loss && node backend/server.js",
-    "postinstall": "npx prisma generate --schema=backend/schema.prisma",
-    "db:seed": "node backend/seed.js",
+    "start": "node backend/server.js",
     "dev": "node backend/server.js"
   },
   "dependencies": {
-    "@prisma/client": "^5.10.2",
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "prisma": "^5.10.2"
+    "sqlite3": "^5.1.7"
   },
   "engines": {
     "node": ">=18.0.0"

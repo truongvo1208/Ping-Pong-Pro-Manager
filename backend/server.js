@@ -1,308 +1,298 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { PrismaClient } = require('@prisma/client');
+const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
-const prisma = new PrismaClient({
-  log: ['error', 'warn'],
+// Database file sẽ nằm trong thư mục backend
+const dbPath = path.join(__dirname, 'pingpong.db');
+const db = new sqlite3.Database(dbPath);
+
+// --- PROMISIFIED DB HELPERS ---
+const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
+  db.run(sql, params, function(err) {
+    if (err) reject(err);
+    else resolve(this);
+  });
 });
 
-// Middlewares
+const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
+  db.get(sql, params, (err, row) => {
+    if (err) reject(err);
+    else resolve(row);
+  });
+});
+
+const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
+  db.all(sql, params, (err, rows) => {
+    if (err) reject(err);
+    else resolve(rows);
+  });
+});
+
+// --- DATABASE INITIALIZATION ---
+async function initDatabase() {
+  console.log('[DB] Đang khởi tạo SQLite tại:', dbPath);
+  try {
+    await dbRun(`CREATE TABLE IF NOT EXISTS clubs (
+      id TEXT PRIMARY KEY, name TEXT NOT NULL, username TEXT UNIQUE NOT NULL, 
+      password TEXT NOT NULL, role TEXT DEFAULT 'club', status TEXT DEFAULT 'active',
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    await dbRun(`CREATE TABLE IF NOT EXISTS players (
+      id TEXT PRIMARY KEY, clubId TEXT, name TEXT NOT NULL, phone TEXT, note TEXT, 
+      membershipEndDate TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+
+    await dbRun(`CREATE TABLE IF NOT EXISTS services (
+      id TEXT PRIMARY KEY, clubId TEXT, name TEXT NOT NULL, price REAL NOT NULL, 
+      unit TEXT, status TEXT DEFAULT 'active'
+    )`);
+
+    await dbRun(`CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY, clubId TEXT, playerId TEXT, checkInTime TEXT, 
+      checkOutTime TEXT, status TEXT DEFAULT 'playing', totalAmount REAL DEFAULT 0
+    )`);
+
+    await dbRun(`CREATE TABLE IF NOT EXISTS session_services (
+      id TEXT PRIMARY KEY, sessionId TEXT, serviceId TEXT, quantity INTEGER, 
+      unitPrice REAL, totalPrice REAL
+    )`);
+
+    await dbRun(`CREATE TABLE IF NOT EXISTS expenses (
+      id TEXT PRIMARY KEY, clubId TEXT, date TEXT, description TEXT, amount REAL, note TEXT
+    )`);
+
+    await dbRun(`CREATE TABLE IF NOT EXISTS membership_payments (
+      id TEXT PRIMARY KEY, clubId TEXT, playerId TEXT, amount REAL, 
+      paymentDate TEXT, startDate TEXT, endDate TEXT
+    )`);
+
+    // Dữ liệu mẫu khởi tạo
+    const clubCount = await dbGet("SELECT count(*) as count FROM clubs");
+    if (clubCount.count === 0) {
+      console.log('[DB] Nạp dữ liệu mẫu khởi tạo...');
+      await dbRun("INSERT INTO clubs (id, name, username, password, role) VALUES (?, ?, ?, ?, ?)", 
+        ['super-admin', 'Hệ thống Quản trị', 'admin_supper', 'M@i250563533', 'superadmin']);
+      await dbRun("INSERT INTO clubs (id, name, username, password, role) VALUES (?, ?, ?, ?, ?)", 
+        ['club-demo', 'CLB Bóng Bàn 3T', 'admin_sg', 'admin', 'club']);
+    }
+    console.log('[DB] Cơ sở dữ liệu đã sẵn sàng.');
+  } catch (err) {
+    console.error('[DB] Lỗi khởi tạo nghiêm trọng:', err);
+  }
+}
+
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Request Logging
+// Log Middleware cho Debug
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  if (req.path.startsWith('/api')) {
+    console.log(`[API] ${req.method} ${req.path}`);
+  }
   next();
 });
 
-/**
- * API Health Check
- */
-const healthCheck = async (req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ 
-      status: 'online', 
-      database: 'connected', 
-      version: '1.0.6',
-      timestamp: new Date() 
-    });
-  } catch (e) {
-    console.error('[HEALTH ERROR]', e.message);
-    res.status(503).json({ 
-      status: 'degraded', 
-      database: 'error', 
-      message: "Hệ thống đang khởi tạo hoặc DB gặp sự cố." 
-    });
-  }
-};
+// --- API ROUTES ---
 
-app.get('/health', healthCheck);
-app.get('/api/health', healthCheck);
-
-const apiRouter = express.Router();
-apiRouter.get('/health', healthCheck);
-
-// --- AUTH API ---
-apiRouter.post('/auth/login', async (req, res) => {
+// Auth
+app.post('/api/auth/login', async (req, res, next) => {
   const { username, password } = req.body;
-  if (username === '__check__') return res.status(200).json({ ok: true });
-  
+  if (username === '__check__' && password === '__check__') return res.json({ status: 'ok' });
   try {
-    const club = await prisma.club.findUnique({ where: { username } });
-    if (!club || club.password !== password) {
-      return res.status(401).json({ error: "Tài khoản hoặc mật khẩu không chính xác." });
-    }
-    const { password: _, ...userData } = club;
-    res.json(userData);
-  } catch (e) {
-    console.error("Login Error:", e);
-    res.status(500).json({ error: "Lỗi đăng nhập hệ thống." });
-  }
+    const club = await dbGet("SELECT * FROM clubs WHERE username = ? AND password = ?", [username, password]);
+    if (!club) return res.status(401).json({ error: "Sai tài khoản hoặc mật khẩu" });
+    const result = { ...club };
+    delete result.password;
+    res.json(result);
+  } catch (e) { next(e); }
 });
 
-// --- CLUBS (SUPER ADMIN) ---
-apiRouter.get('/clubs', async (req, res) => {
-  try { 
-    res.json(await prisma.club.findMany({ orderBy: { createdAt: 'desc' } })); 
-  } catch (e) { res.status(500).json({ error: e.message }); }
+// Clubs (CRUD cho SuperAdmin)
+app.get('/api/clubs', async (req, res, next) => {
+  try { res.json(await dbAll("SELECT * FROM clubs")); } catch (e) { next(e); }
 });
 
-apiRouter.post('/clubs', async (req, res) => {
-  try { 
-    const club = await prisma.club.create({ data: req.body });
-    res.status(201).json(club);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+app.post('/api/clubs', async (req, res, next) => {
+  const { name, username, password, role, status } = req.body;
+  const id = `club-${Date.now()}`;
+  try {
+    await dbRun("INSERT INTO clubs (id, name, username, password, role, status) VALUES (?,?,?,?,?,?)", 
+      [id, name, username, password, role || 'club', status || 'active']);
+    res.status(201).json({ id, name, username, role, status });
+  } catch (e) { next(e); }
 });
 
-apiRouter.patch('/clubs/:id', async (req, res) => {
-  try { 
-    const club = await prisma.club.update({ 
-      where: { id: req.params.id }, 
-      data: req.body 
-    });
-    res.json(club);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+app.patch('/api/clubs/:id', async (req, res, next) => {
+  const { name, status, password } = req.body;
+  try {
+    await dbRun("UPDATE clubs SET name = COALESCE(?, name), status = COALESCE(?, status), password = COALESCE(?, password) WHERE id = ?", 
+      [name, status, password, req.params.id]);
+    res.json(await dbGet("SELECT * FROM clubs WHERE id = ?", [req.params.id]));
+  } catch (e) { next(e); }
 });
 
-apiRouter.delete('/clubs/:id', async (req, res) => {
-  try { 
-    await prisma.club.delete({ where: { id: req.params.id } });
+app.delete('/api/clubs/:id', async (req, res, next) => {
+  try {
+    await dbRun("DELETE FROM clubs WHERE id = ?", [req.params.id]);
     res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { next(e); }
 });
 
-// --- PLAYERS ---
-apiRouter.get('/players', async (req, res) => {
+// Players
+app.get('/api/players', async (req, res, next) => {
+  const { clubId } = req.query;
+  const sql = clubId ? "SELECT * FROM players WHERE clubId = ?" : "SELECT * FROM players";
+  try { res.json(await dbAll(sql, clubId ? [clubId] : [])); } catch (e) { next(e); }
+});
+
+app.post('/api/players', async (req, res, next) => {
+  const { clubId, name, phone, note } = req.body;
+  const id = `p-${Date.now()}`;
+  try {
+    await dbRun("INSERT INTO players (id, clubId, name, phone, note) VALUES (?,?,?,?,?)", [id, clubId, name, phone, note]);
+    res.status(201).json({ id, clubId, name, phone, note });
+  } catch (e) { next(e); }
+});
+
+app.patch('/api/players/:id', async (req, res, next) => {
+  const { name, phone, note, membershipEndDate } = req.body;
+  try {
+    await dbRun("UPDATE players SET name = COALESCE(?, name), phone = COALESCE(?, phone), note = COALESCE(?, note), membershipEndDate = COALESCE(?, membershipEndDate) WHERE id = ?", 
+      [name, phone, note, membershipEndDate, req.params.id]);
+    res.json(await dbGet("SELECT * FROM players WHERE id = ?", [req.params.id]));
+  } catch (e) { next(e); }
+});
+
+// Services
+app.get('/api/services', async (req, res, next) => {
+  const { clubId } = req.query;
+  const sql = clubId ? "SELECT * FROM services WHERE clubId = ?" : "SELECT * FROM services";
+  try { res.json(await dbAll(sql, clubId ? [clubId] : [])); } catch (e) { next(e); }
+});
+
+app.post('/api/services', async (req, res, next) => {
+  const { clubId, name, price, unit } = req.body;
+  const id = `s-${Date.now()}`;
+  try {
+    await dbRun("INSERT INTO services (id, clubId, name, price, unit) VALUES (?,?,?,?,?)", [id, clubId, name, price, unit]);
+    res.status(201).json({ id, name, price, unit });
+  } catch (e) { next(e); }
+});
+
+app.patch('/api/services/:id', async (req, res, next) => {
+  const { name, price, status } = req.body;
+  try {
+    await dbRun("UPDATE services SET name = COALESCE(?, name), price = COALESCE(?, price), status = COALESCE(?, status) WHERE id = ?", 
+      [name, price, status, req.params.id]);
+    res.json(await dbGet("SELECT * FROM services WHERE id = ?", [req.params.id]));
+  } catch (e) { next(e); }
+});
+
+// Sessions
+app.get('/api/sessions', async (req, res, next) => {
   const { clubId } = req.query;
   try {
-    res.json(await prisma.player.findMany({ 
-      where: clubId ? { clubId } : {},
-      orderBy: { createdAt: 'desc' }
+    const sessions = await dbAll(clubId ? "SELECT * FROM sessions WHERE clubId = ?" : "SELECT * FROM sessions", clubId ? [clubId] : []);
+    const enriched = await Promise.all(sessions.map(async (s) => {
+      const sServices = await dbAll("SELECT * FROM session_services WHERE sessionId = ?", [s.id]);
+      return { ...s, sessionServices: sServices };
     }));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    res.json(enriched);
+  } catch (e) { next(e); }
 });
 
-apiRouter.post('/players', async (req, res) => {
-  try { 
-    const player = await prisma.player.create({ data: req.body });
-    res.status(201).json(player);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-apiRouter.patch('/players/:id', async (req, res) => {
-  try { 
-    const player = await prisma.player.update({ 
-      where: { id: req.params.id }, 
-      data: req.body 
-    });
-    res.json(player);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// --- SERVICES ---
-apiRouter.get('/services', async (req, res) => {
-  const { clubId } = req.query;
-  try { 
-    res.json(await prisma.service.findMany({ 
-      where: clubId ? { clubId } : {} 
-    })); 
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-apiRouter.post('/services', async (req, res) => {
-  try { 
-    const service = await prisma.service.create({ data: req.body });
-    res.status(201).json(service);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-apiRouter.patch('/services/:id', async (req, res) => {
-  try { 
-    const service = await prisma.service.update({ 
-      where: { id: req.params.id }, 
-      data: req.body 
-    });
-    res.json(service);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// --- SESSIONS ---
-apiRouter.get('/sessions', async (req, res) => {
-  const { clubId } = req.query;
+app.post('/api/sessions/checkin', async (req, res, next) => {
+  const { clubId, playerId } = req.body;
+  const id = `sess-${Date.now()}`;
+  const now = new Date().toISOString();
   try {
-    res.json(await prisma.session.findMany({
-      where: clubId ? { clubId } : {},
-      include: { 
-        sessionServices: true,
-        player: { select: { id: true, name: true, phone: true, membershipEndDate: true } }
-      },
-      orderBy: { checkInTime: 'desc' }
-    }));
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    await dbRun("INSERT INTO sessions (id, clubId, playerId, checkInTime, status) VALUES (?,?,?,?,?)", [id, clubId, playerId, now, 'playing']);
+    res.status(201).json({ id, clubId, playerId, checkInTime: now, status: 'playing', sessionServices: [] });
+  } catch (e) { next(e); }
 });
 
-apiRouter.post('/sessions/checkin', async (req, res) => {
-  try {
-    const { clubId, playerId } = req.body;
-    const session = await prisma.session.create({
-      data: { clubId, playerId, status: 'playing', checkInTime: new Date() },
-      include: { sessionServices: true, player: true }
-    });
-    res.status(201).json(session);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-apiRouter.post('/sessions/:id/checkout', async (req, res) => {
-  try {
-    const session = await prisma.session.update({
-      where: { id: req.params.id },
-      data: { 
-        status: 'finished', 
-        checkOutTime: new Date(), 
-        totalAmount: parseFloat(req.body.totalAmount) 
-      }
-    });
-    res.json(session);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-apiRouter.post('/sessions/:id/services', async (req, res) => {
+app.post('/api/sessions/:id/services', async (req, res, next) => {
   const { id } = req.params;
-  const { serviceId, quantity, unitPrice } = req.body;
+  const { serviceId, quantity, unitPrice, totalPrice } = req.body;
+  const ssId = `ss-${Date.now()}`;
   try {
-    const ss = await prisma.sessionService.create({
-      data: { 
-        sessionId: id, 
-        serviceId, 
-        quantity: parseInt(quantity), 
-        unitPrice: parseFloat(unitPrice), 
-        totalPrice: quantity * unitPrice 
-      }
-    });
-    res.status(201).json(ss);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    await dbRun("INSERT INTO session_services (id, sessionId, serviceId, quantity, unitPrice, totalPrice) VALUES (?,?,?,?,?,?)", 
+      [ssId, id, serviceId, quantity, unitPrice, totalPrice]);
+    res.status(201).json({ id: ssId, sessionId: id, serviceId, quantity, unitPrice, totalPrice });
+  } catch (e) { next(e); }
 });
 
-// --- EXPENSES ---
-apiRouter.get('/expenses', async (req, res) => {
+app.post('/api/sessions/:id/checkout', async (req, res, next) => {
+  const { totalAmount } = req.body;
+  const now = new Date().toISOString();
+  try {
+    await dbRun("UPDATE sessions SET status = 'finished', checkOutTime = ?, totalAmount = ? WHERE id = ?", 
+      [now, totalAmount, req.params.id]);
+    res.json({ id: req.params.id, status: 'finished', totalAmount, checkOutTime: now });
+  } catch (e) { next(e); }
+});
+
+// Expenses
+app.get('/api/expenses', async (req, res, next) => {
   const { clubId } = req.query;
-  try { 
-    res.json(await prisma.expense.findMany({ 
-      where: clubId ? { clubId } : {},
-      orderBy: { date: 'desc' }
-    })); 
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  try { res.json(await dbAll(clubId ? "SELECT * FROM expenses WHERE clubId = ?" : "SELECT * FROM expenses", clubId ? [clubId] : [])); } catch (e) { next(e); }
 });
 
-apiRouter.post('/expenses', async (req, res) => {
-  try { 
-    const expense = await prisma.expense.create({ 
-      data: { ...req.body, date: new Date(req.body.date || undefined) } 
-    });
-    res.status(201).json(expense);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-apiRouter.delete('/expenses/:id', async (req, res) => {
-  try { 
-    await prisma.expense.delete({ where: { id: req.params.id } });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// --- MEMBERSHIP ---
-apiRouter.post('/membership-payments', async (req, res) => {
+app.post('/api/expenses', async (req, res, next) => {
+  const { clubId, date, description, amount, note } = req.body;
+  const id = `exp-${Date.now()}`;
   try {
-    const { clubId, playerId, amount, startDate, endDate } = req.body;
-    const payment = await prisma.membershipPayment.create({
-      data: { 
-        clubId, playerId, 
-        amount: parseFloat(amount), 
-        startDate: new Date(startDate), 
-        endDate: new Date(endDate), 
-        paymentDate: new Date() 
-      }
-    });
-    // Cập nhật ngày hết hạn của người chơi
-    await prisma.player.update({
-      where: { id: playerId },
-      data: { membershipEndDate: new Date(endDate) }
-    });
-    res.status(201).json(payment);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    await dbRun("INSERT INTO expenses (id, clubId, date, description, amount, note) VALUES (?,?,?,?,?,?)", [id, clubId, date, description, amount, note]);
+    res.status(201).json({ id, clubId, date, description, amount, note });
+  } catch (e) { next(e); }
 });
 
-// Mount Router
-app.use('/api', apiRouter);
+app.delete('/api/expenses/:id', async (req, res, next) => {
+  try { await dbRun("DELETE FROM expenses WHERE id = ?", [req.params.id]); res.json({ success: true }); } catch (e) { next(e); }
+});
 
-// Static frontend delivery
+// Membership Payments
+app.get('/api/membership-payments', async (req, res, next) => {
+  const { clubId } = req.query;
+  try { res.json(await dbAll(clubId ? "SELECT * FROM membership_payments WHERE clubId = ?" : "SELECT * FROM membership_payments", clubId ? [clubId] : [])); } catch (e) { next(e); }
+});
+
+app.post('/api/membership-payments', async (req, res, next) => {
+  const { clubId, playerId, amount, paymentDate, startDate, endDate } = req.body;
+  const id = `mp-${Date.now()}`;
+  try {
+    await dbRun("INSERT INTO membership_payments (id, clubId, playerId, amount, paymentDate, startDate, endDate) VALUES (?,?,?,?,?,?,?)", 
+      [id, clubId, playerId, amount, paymentDate, startDate, endDate]);
+    await dbRun("UPDATE players SET membershipEndDate = ? WHERE id = ?", [endDate, playerId]);
+    res.status(201).json({ id, clubId, playerId, amount, endDate });
+  } catch (e) { next(e); }
+});
+
+// Serve Static Frontend
 const projectRoot = path.resolve(__dirname, '..');
 app.use(express.static(projectRoot));
 
-// SPA fallback
 app.get('*', (req, res) => {
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: "API Endpoint not found" });
-  }
+  if (req.path.startsWith('/api')) return res.status(404).json({ error: "Endpoint không tồn tại" });
   res.sendFile(path.join(projectRoot, 'index.html'));
 });
 
-const PORT = process.env.PORT || 8080;
-
-async function start() {
-  console.log('--- KHỞI ĐỘNG HỆ THỐNG PINGPONG PRO ---');
-  try {
-    await prisma.$connect();
-    console.log('[DB] Kết nối thành công.');
-    
-    // Đảm bảo các tài khoản admin luôn tồn tại với mật khẩu đúng
-    // Sử dụng upsert để ghi đè mật khẩu nếu tài khoản đã tồn tại
-    const adminData = [
-      { id: 'super-admin', name: 'Quản trị Hệ thống', username: 'admin_supper', password: 'M@i250563533', role: 'superadmin' },
-      { id: 'club-demo-3t', name: 'CLB Bóng Bàn 3T', username: 'admin_sg', password: 'admin', role: 'club' }
-    ];
-
-    for (const admin of adminData) {
-      await prisma.club.upsert({
-        where: { username: admin.username },
-        update: { password: admin.password, name: admin.name, role: admin.role },
-        create: admin
-      });
-    }
-    console.log('[SEED] Đã đồng bộ tài khoản quản trị.');
-    
-  } catch (e) {
-    console.error('[DB ERROR] Lỗi database:', e.message);
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SERVER] Đang lắng nghe tại cổng ${PORT}`);
+// --- GLOBAL ERROR HANDLER ---
+app.use((err, req, res, next) => {
+  console.error('[SERVER ERROR]', err);
+  res.status(500).json({ 
+    error: "Máy chủ gặp sự cố xử lý yêu cầu", 
+    details: process.env.NODE_ENV === 'development' ? err.message : undefined 
   });
-}
+});
 
-start();
+// --- START SERVER ---
+const PORT = process.env.PORT || 8080;
+initDatabase().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[SERVER] Đang chạy tại cổng ${PORT}`);
+  });
+});
