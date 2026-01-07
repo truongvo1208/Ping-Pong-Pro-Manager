@@ -13,9 +13,12 @@ export interface Club {
   id: string;
   name: string;
   username: string;
-  password?: string; // Thêm trường password để quản lý
+  password?: string;
+  email?: string;
+  hotline?: string;
+  address?: string;
   status: 'active' | 'inactive';
-  role: 'superadmin' | 'club'; // Phân quyền
+  role: 'SUPER_ADMIN' | 'CLUB_ADMIN';
 }
 
 export interface Player {
@@ -53,8 +56,8 @@ export interface SessionService {
   sessionId: string;
   serviceId: string;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  price: number;
+  totalAmount: number;
 }
 
 export interface Session {
@@ -81,9 +84,9 @@ export interface Expense {
   id: string;
   clubId: string;
   date: string;
+  name: string;
   description: string;
   amount: number;
-  note?: string;
 }
 
 export interface Booking {

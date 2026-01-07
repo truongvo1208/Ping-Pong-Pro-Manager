@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Club } from '../types';
-import { API } from '../api/client';
+import { API, supabase } from '../api/client';
 import LoadingOverlay from './LoadingOverlay';
 
 interface LoginProps {
@@ -13,158 +13,234 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
-  const [dbInfo, setDbInfo] = useState({ message: '', latency: 0 });
-
-  const checkConnection = useCallback(async () => {
-    setDbStatus('checking');
-    const result = await API.system.testConnection();
-    if (result.success) {
-      setDbStatus('online');
-      setDbInfo({ message: result.message, latency: result.latency || 0 });
-    } else {
-      setDbStatus('offline');
-      setDbInfo({ message: result.message, latency: 0 });
-    }
-  }, []);
+  const [showContactAdmin, setShowContactAdmin] = useState(false);
+  const [adminContact, setAdminContact] = useState<{ email: string; hotline: string }>({
+    email: 'quangtruongspkt@gmail.com',
+    hotline: '0904548458'
+  });
 
   useEffect(() => {
-    checkConnection();
-  }, [checkConnection]);
+    const fetchAdminContact = async () => {
+      try {
+        // Tìm theo username 'admin_supper' (Tên đăng nhập mặc định của S-Admin)
+        let { data, error } = await supabase
+          .from('clubs')
+          .select('email, hotline')
+          .eq('username', 'SUPER_ADMIN')
+          .maybeSingle();
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (dbStatus === 'offline') {
-      setError(`Không thể đăng nhập: Database đang ngoại tuyến. (${dbInfo.message})`);
-      return;
-    }
-    if (!username || !password) {
-      setError('Vui lòng nhập đầy đủ thông tin.');
-      return;
-    }
+        // Nếu không thấy, thử tìm theo role superadmin chung
+        if (error || !data) {
+          const { data: roleData } = await supabase
+            .from('clubs')
+            .select('email, hotline')
+            .eq('role', 'SUPER_ADMIN')
+            .limit(1)
+            .maybeSingle();
+          data = roleData;
+        }
 
+        if (data && (data.email || data.hotline)) {
+          setAdminContact({
+            email: data.email || 'quangtruongspkt@gmail.com',
+            hotline: data.hotline || '0904548458'
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch admin contact:", err);
+      }
+    };
+    fetchAdminContact();
+  }, []);
+
+  const executeLogin = async (user: string, pass: string) => {
     setError('');
     setIsLoading(true);
-
     try {
-      const clubData = await API.auth.login(username, password);
-      setIsLoading(false);
+      const clubData = await API.auth.login(user, pass);
       onLogin(clubData);
     } catch (err: any) {
+      console.error("Login attempt failed:", err);
+      setError(err.message || 'Tài khoản hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.');
+    } finally {
       setIsLoading(false);
-      setError(err.message || 'Lỗi đăng nhập.');
     }
   };
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) {
+      setError('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.');
+      return;
+    }
+    await executeLogin(username, password);
+  };
+
+  const quickLogin = async (user: string, pass: string) => {
+    setUsername(user);
+    setPassword(pass);
+    await executeLogin(user, pass);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 relative overflow-hidden font-sans">
+      {/* Hiệu ứng nền Blur nghệ thuật */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px]"></div>
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[120px]"></div>
+
       {isLoading && <LoadingOverlay message="Đang xác thực tài khoản..." />}
       
-      <div className="max-w-md w-full">
-        <div className="text-center mb-10">
-          <div className="w-20 h-20 bg-blue-600 rounded-3xl mx-auto flex items-center justify-center shadow-2xl shadow-blue-600/30 mb-6 relative overflow-hidden group">
-            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform"></div>
-            <i className="fa-solid fa-table-tennis-paddle-ball text-4xl text-white relative z-10"></i>
+      <div className="max-w-md w-full relative z-10">
+        <div className="text-center mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
+          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-[2rem] mx-auto flex items-center justify-center shadow-2xl shadow-blue-500/20 mb-6 group hover:scale-105 transition-transform duration-500">
+            <i className="fa-solid fa-table-tennis-paddle-ball text-5xl text-white"></i>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">PingPong Pro</h1>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <div className={`w-2 h-2 rounded-full ${
-              dbStatus === 'online' ? 'bg-green-500 animate-pulse' : 
-              dbStatus === 'offline' ? 'bg-red-500' : 'bg-gray-400'
-            }`}></div>
-            <p className="text-slate-400 italic text-sm">Giao diện quản lý Cloud (SPA)</p>
-          </div>
+          <h1 className="text-4xl font-black text-white tracking-tighter mb-2">PingPong Pro</h1>
+          <p className="text-slate-400 font-medium text-sm uppercase tracking-[0.2em] opacity-80">Management System</p>
         </div>
 
-        <div className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-2xl relative overflow-hidden">
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Tài khoản</label>
-              <input 
-                type="text" 
-                className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-bold text-sm text-slate-900 placeholder:text-gray-300"
-                placeholder="Tên đăng nhập"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-              />
+        <div className="bg-white rounded-[3rem] p-10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.3)] border border-white/5 animate-in zoom-in duration-500">
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                Tài khoản thành viên
+              </label>
+              <div className="relative group">
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
+                  <i className="fa-solid fa-circle-user text-lg"></i>
+                </div>
+                <input 
+                  type="text" 
+                  className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-transparent outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Mật khẩu</label>
-              <input 
-                type="password" 
-                className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all font-bold text-sm text-slate-900 placeholder:text-gray-300"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                Mật khẩu bảo mật
+              </label>
+              <div className="relative group">
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors">
+                  <i className="fa-solid fa-shield-halved text-lg"></i>
+                </div>
+                <input 
+                  type="password" 
+                  className="w-full pl-14 pr-6 py-4.5 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-transparent outline-none transition-all font-bold text-slate-900 placeholder:text-slate-300"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
             </div>
 
             {error && (
               <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold flex items-start gap-3 border border-red-100 animate-in fade-in slide-in-from-top-1">
-                <i className="fa-solid fa-triangle-exclamation text-base mt-0.5"></i>
-                <span className="flex-1">{error}</span>
+                <i className="fa-solid fa-circle-exclamation text-base mt-0.5"></i>
+                <span className="flex-1 leading-relaxed">{error}</span>
               </div>
             )}
 
             <button 
               type="submit" 
-              disabled={dbStatus === 'checking' || dbStatus === 'offline'}
-              className="w-full py-5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-2xl shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-3 active:scale-95 group text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-5 bg-slate-900 hover:bg-black text-white font-black rounded-2xl shadow-2xl shadow-slate-900/30 transition-all flex items-center justify-center gap-3 active:scale-[0.98] group overflow-hidden relative"
+              disabled={isLoading}
             >
-              {dbStatus === 'checking' ? 'ĐANG KIỂM TRA...' : dbStatus === 'offline' ? 'DATABASE OFFLINE' : 'ĐĂNG NHẬP NGAY'}
-              <i className="fa-solid fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
+              <span className="relative z-10">TIẾP TỤC ĐĂNG NHẬP</span>
+              <i className="fa-solid fa-arrow-right-to-bracket text-sm relative z-10 group-hover:translate-x-1 transition-transform"></i>
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </button>
-          </form>
 
-          <div className="mt-8 pt-6 border-t border-gray-50">
-             <div className="flex flex-col items-center gap-2 mb-6">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${
-                    dbStatus === 'online' ? 'text-green-600' : 
-                    dbStatus === 'offline' ? 'text-red-600' : 'text-gray-400'
-                  }`}>
-                    {dbStatus === 'online' ? `Online (${dbInfo.latency}ms)` : 
-                     dbStatus === 'offline' ? 'Kết nối thất bại' : 'Đang đồng bộ...'}
-                  </span>
-                  {dbStatus === 'offline' && (
-                    <button 
-                      onClick={checkConnection}
-                      className="text-[10px] bg-gray-100 px-2 py-1 rounded-md font-bold text-gray-500 hover:bg-gray-200"
-                    >
-                      THỬ LẠI
-                    </button>
-                  )}
-                </div>
-                {dbStatus === 'offline' && (
-                  <p className="text-[9px] text-red-400 text-center px-4 leading-tight">{dbInfo.message}</p>
-                )}
-             </div>
-             
-             <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest text-center mb-4">Lối tắt dùng thử</p>
-             <div className="grid grid-cols-2 gap-2">
-                <button 
+            {/* Quick Access Section for Testing */}
+            <div className="pt-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-4">
+                — TRUY CẬP NHANH (TESTING) —
+              </p>
+              <div className="flex gap-3">
+                <button
                   type="button"
-                  onClick={() => {setUsername('admin_supper'); setPassword('M@i250563533');}}
-                  className="text-[9px] bg-slate-900 text-white px-3 py-2 rounded-xl font-bold hover:bg-black transition-all"
+                  onClick={() => quickLogin('sadmin', 'M@i250563533')}
+                  className="flex-1 py-3 px-2 bg-indigo-50 text-indigo-700 rounded-xl text-[10px] font-black hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1"
                 >
+                  <i className="fa-solid fa-user-shield text-base mb-1"></i>
                   SUPER ADMIN
                 </button>
-                <button 
+                <button
                   type="button"
-                  onClick={() => {setUsername('admin_sg'); setPassword('admin');}}
-                  className="text-[9px] bg-blue-50 text-blue-600 px-3 py-2 rounded-xl font-bold hover:bg-blue-100 transition-all"
+                  onClick={() => quickLogin('admin3tq8', 'admin@123')}
+                  className="flex-1 py-3 px-2 bg-blue-50 text-blue-700 rounded-xl text-[10px] font-black hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 flex flex-col items-center gap-1"
                 >
-                  CLB 3T ADMIN
+                  <i className="fa-solid fa-house-laptop text-base mb-1"></i>
+                  CLUB ADMIN
                 </button>
-             </div>
+              </div>
+            </div>
+          </form>
+
+          <div className="mt-10 pt-8 border-t border-slate-50">
+            <div className="flex flex-col items-center gap-6">
+              <button 
+                type="button" 
+                onClick={() => setShowContactAdmin(true)}
+                className="text-xs font-bold text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-2"
+              >
+                <i className="fa-solid fa-question-circle text-sm opacity-50"></i>
+                Quên thông tin truy cập?
+              </button>
+              
+              <div className="flex items-center gap-2 opacity-30">
+                <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em]">
+                  Pro Enterprise
+                </p>
+                <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
+              </div>
+            </div>
           </div>
         </div>
-        
-        <p className="text-center text-slate-500 text-[10px] mt-8 uppercase font-bold tracking-widest opacity-50">
-          Supabase Cloud Engine v2.0
-        </p>
       </div>
+
+      {/* Modal liên hệ Super Admin */}
+      {showContactAdmin && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-xl animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full shadow-2xl animate-in zoom-in duration-300 text-center">
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl mx-auto flex items-center justify-center mb-6">
+              <i className="fa-solid fa-headset text-3xl"></i>
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Liên hệ Quản trị viên</h3>
+            <p className="text-slate-500 text-sm leading-relaxed mb-8 font-medium">
+              Vui lòng liên hệ trực tiếp với bộ phận <strong>Super Admin</strong> để yêu cầu cấp lại mật khẩu hoặc khôi phục tài khoản cơ sở.
+            </p>
+            <div className="space-y-3 mb-8">
+              <div className="bg-slate-50 p-4 rounded-2xl flex items-center gap-4 text-left border border-slate-100">
+                <i className="fa-solid fa-envelope text-blue-500"></i>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email hỗ trợ</p>
+                  <p className="text-sm font-bold text-slate-700 truncate">{adminContact.email}</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl flex items-center gap-4 text-left border border-slate-100">
+                <i className="fa-solid fa-phone text-indigo-500"></i>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Hotline</p>
+                  <p className="text-sm font-bold text-slate-700">{adminContact.hotline}</p>
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowContactAdmin(false)}
+              className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-black transition-all shadow-xl"
+            >
+              ĐÃ HIỂU
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

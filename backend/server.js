@@ -1,7 +1,9 @@
+
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
+const bcrypt = require('bcryptjs');
 
 const app = express();
 // Database file sẽ nằm trong thư mục backend
@@ -73,10 +75,15 @@ async function initDatabase() {
     const clubCount = await dbGet("SELECT count(*) as count FROM clubs");
     if (clubCount.count === 0) {
       console.log('[DB] Nạp dữ liệu mẫu khởi tạo...');
+      
+      const salt = await bcrypt.genSalt(10);
+      const hashedSuperPass = await bcrypt.hash('M@i250563533', salt);
+      const hashedDemoPass = await bcrypt.hash('admin', salt);
+
       await dbRun("INSERT INTO clubs (id, name, username, password, role) VALUES (?, ?, ?, ?, ?)", 
-        ['super-admin', 'Hệ thống Quản trị', 'admin_supper', 'M@i250563533', 'superadmin']);
+        ['super-admin', 'Hệ thống Quản trị', 'admin_supper', hashedSuperPass, 'superadmin']);
       await dbRun("INSERT INTO clubs (id, name, username, password, role) VALUES (?, ?, ?, ?, ?)", 
-        ['club-demo', 'CLB Bóng Bàn 3T', 'admin_sg', 'admin', 'club']);
+        ['club-demo', 'CLB Bóng Bàn 3T', 'admin_sg', hashedDemoPass, 'club']);
     }
     console.log('[DB] Cơ sở dữ liệu đã sẵn sàng.');
   } catch (err) {
@@ -102,8 +109,13 @@ app.post('/api/auth/login', async (req, res, next) => {
   const { username, password } = req.body;
   if (username === '__check__' && password === '__check__') return res.json({ status: 'ok' });
   try {
-    const club = await dbGet("SELECT * FROM clubs WHERE username = ? AND password = ?", [username, password]);
+    const club = await dbGet("SELECT * FROM clubs WHERE username = ?", [username]);
     if (!club) return res.status(401).json({ error: "Sai tài khoản hoặc mật khẩu" });
+    
+    // So sánh mật khẩu bằng bcrypt
+    const isMatch = await bcrypt.compare(password, club.password);
+    if (!isMatch) return res.status(401).json({ error: "Sai tài khoản hoặc mật khẩu" });
+
     const result = { ...club };
     delete result.password;
     res.json(result);
@@ -119,8 +131,12 @@ app.post('/api/clubs', async (req, res, next) => {
   const { name, username, password, role, status } = req.body;
   const id = `club-${Date.now()}`;
   try {
+    // Mã hóa mật khẩu khi tạo mới
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     await dbRun("INSERT INTO clubs (id, name, username, password, role, status) VALUES (?,?,?,?,?,?)", 
-      [id, name, username, password, role || 'club', status || 'active']);
+      [id, name, username, hashedPassword, role || 'club', status || 'active']);
     res.status(201).json({ id, name, username, role, status });
   } catch (e) { next(e); }
 });
@@ -128,9 +144,19 @@ app.post('/api/clubs', async (req, res, next) => {
 app.patch('/api/clubs/:id', async (req, res, next) => {
   const { name, status, password } = req.body;
   try {
+    let hashedPassword = undefined;
+    if (password) {
+      // Mã hóa mật khẩu nếu có yêu cầu cập nhật mật khẩu
+      const salt = await bcrypt.genSalt(10);
+      hashedPassword = await bcrypt.hash(password, salt);
+    }
+
     await dbRun("UPDATE clubs SET name = COALESCE(?, name), status = COALESCE(?, status), password = COALESCE(?, password) WHERE id = ?", 
-      [name, status, password, req.params.id]);
-    res.json(await dbGet("SELECT * FROM clubs WHERE id = ?", [req.params.id]));
+      [name, status, hashedPassword, req.params.id]);
+    
+    const updatedClub = await dbGet("SELECT * FROM clubs WHERE id = ?", [req.params.id]);
+    if (updatedClub) delete updatedClub.password;
+    res.json(updatedClub);
   } catch (e) { next(e); }
 });
 

@@ -127,7 +127,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 {playingSessions.map(session => {
                   const player = players.find(p => p.id === session.playerId);
                   const sServices = sessionServices.filter(ss => ss.sessionId === session.id);
-                  const currentTotal = sServices.reduce((sum, ss) => sum + ss.totalPrice, 0);
+                  const currentTotal = sServices.reduce((sum, ss) => sum + ss.totalAmount, 0);
                   const isMember = player?.membershipEndDate && new Date(player.membershipEndDate) >= new Date();
 
                   return (
@@ -243,7 +243,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                       return (
                         <div key={ss.id} className="flex justify-between items-center text-xs md:text-sm">
                           <span className="text-gray-600 truncate mr-2">{s?.name} x{ss.quantity}</span>
-                          <span className="font-bold text-gray-800 shrink-0">{ss.totalPrice.toLocaleString()}đ</span>
+                          <span className="font-bold text-gray-800 shrink-0">{ss.totalAmount.toLocaleString()}đ</span>
                         </div>
                       );
                     })}

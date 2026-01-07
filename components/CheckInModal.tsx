@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Player, Session } from '../types';
+import { validateVNPhone } from '../utils/formatters';
 
 interface CheckInModalProps {
   players: Player[];
@@ -14,6 +15,7 @@ const CheckInModal: React.FC<CheckInModalProps> = ({ players, activeSessions, on
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const activePlayerIds = new Set(activeSessions.map(s => s.playerId));
   
@@ -23,8 +25,31 @@ const CheckInModal: React.FC<CheckInModalProps> = ({ players, activeSessions, on
     !activePlayerIds.has(p.id)
   );
 
+  const handleSaveAndCheckIn = () => {
+    const newErrors: Record<string, string> = {};
+    if (!newName.trim()) newErrors.name = 'Vui lòng nhập tên người chơi';
+    
+    if (newPhone && !validateVNPhone(newPhone)) {
+      newErrors.phone = 'SĐT VN không hợp lệ';
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    const p: Player = {
+      id: `p-${Date.now()}`,
+      clubId: '',
+      name: newName,
+      phone: newPhone,
+      createdAt: new Date().toISOString()
+    };
+    onCheckIn(p);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
         <div className="p-6 border-b border-gray-100 flex justify-between items-center">
           <h3 className="text-xl font-bold text-gray-800">Check-in người chơi</h3>
@@ -42,7 +67,7 @@ const CheckInModal: React.FC<CheckInModalProps> = ({ players, activeSessions, on
                   autoFocus
                   type="text"
                   placeholder="Tìm theo tên hoặc số điện thoại..."
-                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -70,7 +95,7 @@ const CheckInModal: React.FC<CheckInModalProps> = ({ players, activeSessions, on
                   <div className="text-center py-6">
                     <p className="text-gray-400 text-sm mb-4">Không tìm thấy người chơi này</p>
                     <button 
-                      onClick={() => setIsAddingNew(true)}
+                      onClick={() => { setIsAddingNew(true); setErrors({}); }}
                       className="text-blue-600 font-bold hover:underline"
                     >
                       + Thêm người chơi mới
@@ -86,44 +111,39 @@ const CheckInModal: React.FC<CheckInModalProps> = ({ players, activeSessions, on
                 <input 
                   autoFocus
                   type="text"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={`w-full px-4 py-3 bg-gray-50 border ${errors.name ? 'border-red-500' : 'border-gray-200'} rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 outline-none transition-all`}
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    if (errors.name) setErrors({...errors, name: ''});
+                  }}
                 />
+                {errors.name && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1">{errors.name}</p>}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-600 mb-1">Số điện thoại</label>
                 <input 
-                  type="tel"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  type="text"
+                  placeholder="09xxx..."
+                  className={`w-full px-4 py-3 bg-gray-50 border ${errors.phone ? 'border-red-500' : 'border-gray-200'} rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 outline-none transition-all`}
                   value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
+                  onChange={(e) => {
+                    setNewPhone(e.target.value.replace(/\D/g, "").slice(0, 10));
+                    if (errors.phone) setErrors({...errors, phone: ''});
+                  }}
                 />
+                {errors.phone && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1">{errors.phone}</p>}
               </div>
               <div className="flex gap-3 pt-2">
                 <button 
-                  onClick={() => setIsAddingNew(false)}
-                  className="flex-1 px-4 py-3 rounded-2xl border border-gray-200 font-bold text-gray-500 hover:bg-gray-50"
+                  onClick={() => { setIsAddingNew(false); setErrors({}); }}
+                  className="flex-1 px-4 py-3 rounded-2xl border border-gray-200 font-bold text-gray-500 hover:bg-gray-50 transition-all"
                 >
                   Quay lại
                 </button>
                 <button 
-                  disabled={!newName}
-                  onClick={() => {
-                    // Fix: Added missing clubId property to satisfy Player type requirement.
-                    // App.tsx logic will ensure the correct ID is persisted.
-                    const p: Player = {
-                      id: `p-${Date.now()}`,
-                      clubId: '',
-                      name: newName,
-                      phone: newPhone,
-                      createdAt: new Date().toISOString()
-                    };
-                    // Simplified: adding player isn't propagated to global state in this mini-component, 
-                    // should be handled by parent or a global state.
-                    onCheckIn(p);
-                  }}
-                  className="flex-2 px-6 py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50"
+                  onClick={handleSaveAndCheckIn}
+                  className="flex-[2] px-6 py-3 rounded-2xl bg-blue-600 text-white font-bold hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-600/20"
                 >
                   Lưu & Check-in
                 </button>

@@ -138,7 +138,7 @@ const Reports: React.FC<ReportsProps> = ({ sessions, expenses, membershipPayment
     relevantSS.forEach(ss => {
       const s = services.find(x => x.id === ss.serviceId);
       const name = s?.name || 'Khác';
-      dist[name] = (dist[name] || 0) + ss.totalPrice;
+      dist[name] = (dist[name] || 0) + ss.totalAmount;
     });
 
     const totalMembership = membershipPayments.reduce((sum, m) => sum + m.amount, 0);

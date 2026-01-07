@@ -8,11 +8,11 @@ export const CLUBS: Club[] = [
     username: 'admin_supper', 
     password: 'M@i250563533', 
     status: 'active', 
-    role: 'superadmin' 
+    role: 'SUPER_ADMIN' 
   },
-  { id: 'club-hanoi', name: 'CLB Bóng Bàn 3T', username: 'admin_sg', password: 'admin', status: 'active', role: 'club' },
-  { id: 'club-phoco', name: 'CLB Phố Cổ PingPong', username: 'admin_phoco', password: 'admin', status: 'active', role: 'club' },
-  { id: 'club-saigon', name: 'CLB Sài Gòn Team', username: 'admin_saigon', password: 'admin', status: 'active', role: 'club' },
+  { id: 'club-hanoi', name: 'CLB Bóng Bàn 3T', username: 'admin_sg', password: 'admin', status: 'active', role: 'CLUB_ADMIN' },
+  { id: 'club-phoco', name: 'CLB Phố Cổ PingPong', username: 'admin_phoco', password: 'admin', status: 'active', role: 'CLUB_ADMIN' },
+  { id: 'club-saigon', name: 'CLB Sài Gòn Team', username: 'admin_saigon', password: 'admin', status: 'active', role: 'CLUB_ADMIN' },
 ];
 
 export const INITIAL_PLAYERS: Player[] = [

@@ -17,7 +17,8 @@ const GlobalReports: React.FC<GlobalReportsProps> = ({
 }) => {
   const [selectedClubId, setSelectedClubId] = useState<string>('all');
 
-  const filteredClubs = clubs.filter(c => c.role === 'club');
+  // Fix: Changed 'club' to 'CLUB_ADMIN' to match type definition in types.ts
+  const filteredClubs = clubs.filter(c => c.role === 'CLUB_ADMIN');
 
   const clubSessions = useMemo(() => 
     selectedClubId === 'all' ? sessions : sessions.filter(s => s.clubId === selectedClubId), 
