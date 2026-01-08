@@ -255,7 +255,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           {/* Modal Chi tiết lượt chơi */}
           {selectedSession && selectedPlayer && (
             <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[110] flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300 relative">
+              <div className="bg-white w-full max-w-lg h-[85vh] rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300 relative flex flex-col">
                 <SessionCard 
                   session={selectedSession}
                   player={selectedPlayer}

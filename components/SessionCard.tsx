@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Session, Player, Service, SessionService, SessionStatus, ServiceStatus } from '../types';
 
@@ -186,7 +187,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
       </div>
 
       {/* Body - Dịch vụ & Tính tiền */}
-      <div className="flex-1 p-8 overflow-y-auto custom-scrollbar max-h-[400px]">
+      <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dịch vụ đã sử dụng</h5>
