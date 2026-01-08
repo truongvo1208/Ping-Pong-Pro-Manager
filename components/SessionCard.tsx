@@ -176,9 +176,10 @@ const SessionCard: React.FC<SessionCardProps> = ({
                 {elapsedDisplay}
               </div>
             </div>
+            {/* Top Close Button (Optional/Secondary now) */}
             <button 
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-white text-slate-400 hover:text-slate-800 hover:bg-slate-50 transition-all flex items-center justify-center shadow-sm border border-slate-100 ml-2"
+              className="w-10 h-10 rounded-full bg-white text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center shadow-sm border border-slate-100 ml-2"
             >
               <i className="fa-solid fa-xmark text-lg"></i>
             </button>
@@ -334,21 +335,29 @@ const SessionCard: React.FC<SessionCardProps> = ({
       </div>
 
       {/* Footer - Thanh toán */}
-      <div className="p-10 border-t border-slate-100 bg-slate-50/50">
-        <div className="flex justify-between items-center mb-8">
+      <div className="p-8 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex justify-between items-center mb-6">
           <div>
             <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest block mb-1">Tổng cộng tạm tính</span>
             <span className="text-4xl font-black text-slate-900 tracking-tighter">{currentTotal.toLocaleString()} <span className="text-sm font-bold text-slate-400 tracking-normal uppercase ml-1">đ</span></span>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 gap-4">
+        <div className="flex gap-4 items-center">
           <button 
             onClick={() => onCheckOutRequest(session, currentTotal)}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[1.5rem] font-black transition-all shadow-xl shadow-blue-600/30 active:scale-[0.98] flex items-center justify-center gap-3 text-lg"
+            className="flex-[3] bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-[1.5rem] font-black transition-all shadow-xl shadow-blue-600/30 active:scale-[0.98] flex items-center justify-center gap-3 text-lg"
           >
             <i className="fa-solid fa-file-invoice-dollar text-xl"></i>
             THANH TOÁN & KẾT THÚC
+          </button>
+
+          <button 
+            onClick={onClose}
+            className="flex-1 bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 py-5 rounded-[1.5rem] font-black transition-all shadow-none active:scale-[0.98] flex items-center justify-center gap-2 text-sm"
+          >
+            <i className="fa-solid fa-xmark text-lg"></i>
+            ĐÓNG
           </button>
         </div>
       </div>
