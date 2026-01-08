@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Session, Player, Service, SessionService, SessionStatus, ServiceStatus } from '../types';
 
@@ -20,8 +19,9 @@ const SessionCard: React.FC<SessionCardProps> = ({
 }) => {
   const [elapsedDisplay, setElapsedDisplay] = useState('0m 0s');
   const [showServices, setShowServices] = useState(false);
-  const [selectedServiceToAdd, setSelectedServiceToAdd] = useState<Service | null>(null);
-  const [quantityInput, setQuantityInput] = useState<number | string>(1);
+  
+  // State for batch selection: { serviceId: quantity }
+  const [pendingItems, setPendingItems] = useState<Record<string, number>>({});
 
   const isMonthlyMember = useMemo(() => {
     if (!player.membershipEndDate) return false;
@@ -30,7 +30,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
     return end >= now;
   }, [player.membershipEndDate]);
 
-  // Bộ lọc thông minh hơn, đảm bảo khớp kể cả khi data trả về khác case (hoa/thường)
   const activeServices = useMemo(() => {
     if (!Array.isArray(services)) return [];
     return services.filter(s => {
@@ -60,47 +59,74 @@ const SessionCard: React.FC<SessionCardProps> = ({
     return Array.isArray(sessionServices) ? sessionServices.reduce((sum, ss) => sum + ss.totalAmount, 0) : 0;
   }, [sessionServices]);
 
-  const handleSelectService = (service: Service) => {
-    setSelectedServiceToAdd(service);
-    setQuantityInput(1);
-    setShowServices(false);
+  // Handle local quantity change in the dropdown
+  const handlePendingChange = (serviceId: string, delta: number) => {
+    setPendingItems(prev => {
+      const currentQty = prev[serviceId] || 0;
+      const newQty = currentQty + delta;
+      
+      if (newQty <= 0) {
+        const { [serviceId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [serviceId]: newQty };
+    });
   };
 
-  const handleConfirmAdd = () => {
-    if (!selectedServiceToAdd) return;
+  const pendingTotalAmount = useMemo(() => {
+    let total = 0;
+    Object.entries(pendingItems).forEach(([sId, qty]) => {
+      const s = services.find(x => x.id === sId);
+      if (s) total += Number(s.price) * Number(qty);
+    });
+    return total;
+  }, [pendingItems, services]);
 
-    const qty = typeof quantityInput === 'string' ? parseInt(quantityInput) : quantityInput;
-    if (isNaN(qty) || qty <= 0) {
-      alert("Vui lòng nhập số lượng hợp lệ (tối thiểu là 1)");
-      return;
-    }
+  const handleBatchAdd = () => {
+    const itemsToAdd = Object.entries(pendingItems);
+    if (itemsToAdd.length === 0) return;
 
-    const lowerName = selectedServiceToAdd.name.toLowerCase();
-    const isCourtFee = lowerName.includes('tiền sân') || lowerName.includes('phí sân') || lowerName.includes('giờ chơi');
-    
-    if (isCourtFee && isMonthlyMember) {
+    // Check for Court Fee warning
+    let hasCourtFee = false;
+    itemsToAdd.forEach(([sId]) => {
+      const s = services.find(x => x.id === sId);
+      if (s) {
+        const lowerName = s.name.toLowerCase();
+        if (lowerName.includes('tiền sân') || lowerName.includes('phí sân') || lowerName.includes('giờ chơi')) {
+          hasCourtFee = true;
+        }
+      }
+    });
+
+    if (hasCourtFee && isMonthlyMember) {
       if (!window.confirm("Thành viên này đang đóng tiền tháng. Bạn vẫn muốn tính thêm tiền sân/giờ chơi?")) {
-        setSelectedServiceToAdd(null);
         return;
       }
     }
 
-    try {
-      const newSS: any = {
-        sessionId: session.id,
-        serviceId: selectedServiceToAdd.id,
-        quantity: qty,
-        price: selectedServiceToAdd.price, // unit price
-        totalAmount: selectedServiceToAdd.price * qty,
-        clubId: session.clubId // Included clubId for RLS requirements
-      };
-      onAddService(newSS);
-      setSelectedServiceToAdd(null);
-      setQuantityInput(1);
-    } catch (err) {
-      console.error("Lỗi khi thêm dịch vụ:", err);
-      alert("Không thể thêm dịch vụ. Vui lòng kiểm tra lại kết nối.");
-    }
+    // Process all items
+    itemsToAdd.forEach(([sId, qty]) => {
+      const service = services.find(s => s.id === sId);
+      if (service) {
+        try {
+          const newSS: any = {
+            sessionId: session.id,
+            serviceId: service.id,
+            quantity: qty,
+            price: service.price,
+            totalAmount: Number(service.price) * Number(qty),
+            clubId: session.clubId
+          };
+          onAddService(newSS);
+        } catch (err) {
+          console.error("Lỗi thêm dịch vụ:", err);
+        }
+      }
+    });
+
+    // Reset UI
+    setPendingItems({});
+    setShowServices(false);
   };
 
   const adjustQuantity = (ss: SessionService, delta: number) => {
@@ -164,69 +190,86 @@ const SessionCard: React.FC<SessionCardProps> = ({
         <div className="flex justify-between items-center mb-6">
           <div>
             <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dịch vụ đã sử dụng</h5>
-            <p className="text-[10px] text-slate-300 font-bold mt-0.5">Thêm các dịch vụ cho người chơi</p>
+            <p className="text-[10px] text-slate-300 font-bold mt-0.5">Quản lý dịch vụ tiêu dùng</p>
           </div>
           
           <div className="relative">
-            {!selectedServiceToAdd ? (
-              <button 
-                onClick={() => setShowServices(!showServices)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all ${
-                  showServices ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50 shadow-sm'
-                }`}
-              >
-                <i className={`fa-solid ${showServices ? 'fa-xmark' : 'fa-plus'}`}></i>
-                CHỌN DỊCH VỤ
-              </button>
-            ) : (
-              <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-blue-200 shadow-xl animate-in zoom-in duration-200">
-                <div className="px-2">
-                  <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-1">Số lượng {selectedServiceToAdd.name}</p>
-                  <input 
-                    autoFocus
-                    type="number" 
-                    min="1"
-                    className="w-16 bg-transparent text-center text-sm font-black text-blue-600 outline-none"
-                    value={quantityInput}
-                    onChange={(e) => setQuantityInput(e.target.value)}
-                  />
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={handleConfirmAdd} className="bg-blue-600 text-white w-9 h-9 rounded-xl flex items-center justify-center hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-90">
-                    <i className="fa-solid fa-check"></i>
-                  </button>
-                  <button onClick={() => setSelectedServiceToAdd(null)} className="bg-white text-slate-400 w-9 h-9 rounded-xl flex items-center justify-center hover:text-slate-800 border border-slate-200 transition-all">
-                    <i className="fa-solid fa-xmark"></i>
-                  </button>
-                </div>
-              </div>
-            )}
+            <button 
+              onClick={() => setShowServices(!showServices)}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all ${
+                showServices ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50 shadow-sm'
+              }`}
+            >
+              <i className={`fa-solid ${showServices ? 'fa-xmark' : 'fa-plus'}`}></i>
+              {showServices ? 'ĐÓNG' : 'THÊM DỊCH VỤ'}
+            </button>
 
             {showServices && (
               <>
                 <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setShowServices(false)}></div>
-                <div className="absolute right-0 top-full mt-3 w-64 bg-white border border-slate-100 rounded-[2rem] shadow-2xl z-50 animate-in fade-in zoom-in duration-200 origin-top-right py-4 max-h-72 overflow-y-auto custom-scrollbar">
-                  <div className="px-6 py-2 border-b border-slate-50 mb-2">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Danh mục dịch vụ</p>
+                <div className="absolute right-0 top-full mt-3 w-96 bg-white border border-slate-100 rounded-[2rem] shadow-2xl z-50 animate-in fade-in zoom-in duration-200 origin-top-right flex flex-col max-h-[400px]">
+                  <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chọn dịch vụ cần thêm</p>
                   </div>
-                  {activeServices.length > 0 ? (
-                    activeServices.map(s => (
-                      <button
-                        key={s.id}
-                        onClick={() => handleSelectService(s)}
-                        className="w-full text-left px-6 py-3.5 hover:bg-blue-50 flex justify-between items-center transition-colors group"
-                      >
-                        <span className="text-sm font-bold text-slate-700 group-hover:text-blue-600">{s.name}</span>
-                        <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">{s.price.toLocaleString()}đ</span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-6 py-8 text-center text-xs text-slate-400 italic">
-                      <i className="fa-solid fa-box-open text-2xl mb-2 opacity-20 block"></i>
-                      Không có dịch vụ khả dụng
-                      <p className="mt-1 text-[10px]">Vui lòng kiểm tra lại 'Dịch vụ & Kho'</p>
-                    </div>
-                  )}
+                  
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
+                    {activeServices.length > 0 ? (
+                      activeServices.map(s => {
+                        const count = pendingItems[s.id] || 0;
+                        return (
+                          <div
+                            key={s.id}
+                            className={`flex justify-between items-center p-3 rounded-2xl transition-all mb-1 ${
+                              count > 0 ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50 border border-transparent'
+                            }`}
+                          >
+                            <div className="flex-1">
+                               <p className="text-sm font-bold text-slate-700">{s.name}</p>
+                               <p className="text-[10px] font-black text-slate-400">{s.price.toLocaleString()}đ</p>
+                            </div>
+                            
+                            <div className="flex items-center bg-white rounded-xl border border-slate-100 shadow-sm h-9">
+                               <button 
+                                 onClick={() => handlePendingChange(s.id, -1)}
+                                 className={`w-8 h-full flex items-center justify-center transition-colors rounded-l-xl ${count > 0 ? 'text-red-500 hover:bg-red-50' : 'text-slate-300'}`}
+                                 disabled={count === 0}
+                               >
+                                 <i className="fa-solid fa-minus text-[10px]"></i>
+                               </button>
+                               <div className={`w-8 text-center text-sm font-black ${count > 0 ? 'text-blue-600' : 'text-slate-300'}`}>
+                                 {count}
+                               </div>
+                               <button 
+                                 onClick={() => handlePendingChange(s.id, 1)}
+                                 className="w-8 h-full flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors rounded-r-xl"
+                               >
+                                 <i className="fa-solid fa-plus text-[10px]"></i>
+                               </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="px-6 py-8 text-center text-xs text-slate-400 italic">
+                        <i className="fa-solid fa-box-open text-2xl mb-2 opacity-20 block"></i>
+                        Kho trống
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 border-t border-slate-50 bg-slate-50/50">
+                     <div className="flex justify-between items-center mb-3 px-2">
+                        <span className="text-[10px] font-black text-slate-400 uppercase">Tạm tính</span>
+                        <span className="font-black text-slate-800">{pendingTotalAmount.toLocaleString()}đ</span>
+                     </div>
+                     <button 
+                        onClick={handleBatchAdd}
+                        disabled={Object.keys(pendingItems).length === 0}
+                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-black text-xs shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:shadow-none hover:bg-blue-700 active:scale-95 transition-all"
+                     >
+                        XÁC NHẬN THÊM ({Object.keys(pendingItems).length})
+                     </button>
+                  </div>
                 </div>
               </>
             )}
