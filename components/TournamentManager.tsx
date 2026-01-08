@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { Player, Tournament, Match } from '../types';
+import { formatDate } from '../utils/formatters';
 
 interface TournamentManagerProps {
   players: Player[];
@@ -53,7 +54,7 @@ const TournamentManager: React.FC<TournamentManagerProps> = ({ players }) => {
                    {t.status === 'ongoing' ? 'Đang diễn ra' : 'Sắp tới'}
                 </span>
                 <h4 className="text-2xl font-black text-slate-800 mt-2">{t.name}</h4>
-                <p className="text-xs text-slate-400 font-bold uppercase mt-1">Khởi tranh: {new Date(t.startDate).toLocaleDateString('vi-VN')}</p>
+                <p className="text-xs text-slate-400 font-bold uppercase mt-1">Khởi tranh: {formatDate(t.startDate)}</p>
               </div>
             </div>
 

@@ -6,10 +6,11 @@ import { formatCurrencyInput, parseCurrencyString } from '../utils/formatters';
 interface ServiceManagerProps {
   clubId: string;
   services: Service[];
-  onUpdateServices: (services: Service[]) => void;
+  onAddService: (s: Partial<Service>) => void;
+  onUpdateService: (s: Service) => void;
 }
 
-const ServiceManager: React.FC<ServiceManagerProps> = ({ clubId, services, onUpdateServices }) => {
+const ServiceManager: React.FC<ServiceManagerProps> = ({ clubId, services, onAddService, onUpdateService }) => {
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -57,35 +58,30 @@ const ServiceManager: React.FC<ServiceManagerProps> = ({ clubId, services, onUpd
     if (!validate()) return;
     
     if (editingService) {
-      const updatedList = services.map(s => 
-        s.id === editingService.id 
-          ? { ...s, name: form.name, price: parseCurrencyString(form.price), unit: form.unit }
-          : s
-      );
-      onUpdateServices(updatedList);
-    } else {
-      const newService: Service = {
-        id: `s-${Date.now()}`,
-        clubId,
+      onUpdateService({
+        ...editingService,
         name: form.name,
         price: parseCurrencyString(form.price),
         unit: form.unit || 'lần',
-        status: form.status || ServiceStatus.ACTIVE
-      };
-      onUpdateServices([...services, newService]);
+        status: form.status
+      });
+    } else {
+      onAddService({
+        name: form.name,
+        price: parseCurrencyString(form.price),
+        unit: form.unit || 'lần',
+        status: ServiceStatus.ACTIVE
+      });
     }
     
     setShowModal(false);
   };
 
-  const toggleStatus = (id: string) => {
-    const updated = services.map(s => {
-      if (s.id === id) {
-        return { ...s, status: s.status === ServiceStatus.ACTIVE ? ServiceStatus.INACTIVE : ServiceStatus.ACTIVE };
-      }
-      return s;
+  const toggleStatus = (s: Service) => {
+    onUpdateService({
+      ...s,
+      status: s.status === ServiceStatus.ACTIVE ? ServiceStatus.INACTIVE : ServiceStatus.ACTIVE
     });
-    onUpdateServices(updated);
   };
 
   return (
@@ -103,7 +99,7 @@ const ServiceManager: React.FC<ServiceManagerProps> = ({ clubId, services, onUpd
         </button>
       </div>
 
-      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left">
             <thead className="bg-slate-50/50 border-b border-slate-100">
@@ -160,7 +156,7 @@ const ServiceManager: React.FC<ServiceManagerProps> = ({ clubId, services, onUpd
                       </td>
                       <td className="px-6 py-4">
                          <button 
-                            onClick={() => toggleStatus(s.id)}
+                            onClick={() => toggleStatus(s)}
                             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter transition-all ${
                               !isInactive 
                                 ? 'bg-green-50 text-green-600 hover:bg-green-600 hover:text-white' 
@@ -193,7 +189,7 @@ const ServiceManager: React.FC<ServiceManagerProps> = ({ clubId, services, onUpd
 
       {showModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
             <div className="p-10 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
               <div>
                 <h3 className="text-2xl font-black text-slate-800">{editingService ? 'Cập nhật dịch vụ' : 'Thêm dịch vụ'}</h3>

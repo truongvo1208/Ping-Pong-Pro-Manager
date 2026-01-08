@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Session, Player, SessionStatus } from '../types';
+import { formatDate } from '../utils/formatters';
 
 interface TableMapProps {
   sessions: Session[];
@@ -24,7 +25,7 @@ const TableMap: React.FC<TableMapProps> = ({ sessions, players, onTableClick }) 
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-wrap gap-6 items-center justify-between">
         <div>
           <h3 className="text-xl font-black text-slate-800">Sơ đồ bàn thời gian thực</h3>
-          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Trạng thái vận hành {new Date().toLocaleDateString('vi-VN')}</p>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Trạng thái vận hành {formatDate(new Date())}</p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-2">

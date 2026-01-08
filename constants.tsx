@@ -5,14 +5,18 @@ export const CLUBS: Club[] = [
   { 
     id: 'super-admin', 
     name: 'Hệ thống Quản trị', 
-    username: 'admin_supper', 
+    username: 'sadmin', 
     password: 'M@i250563533', 
     status: 'active', 
-    role: 'SUPER_ADMIN' 
+    role: 'SUPER_ADMIN',
+    // Added required subscriptionTier property
+    subscriptionTier: 'YEARLY'
   },
-  { id: 'club-hanoi', name: 'CLB Bóng Bàn 3T', username: 'admin_sg', password: 'admin', status: 'active', role: 'CLUB_ADMIN' },
-  { id: 'club-phoco', name: 'CLB Phố Cổ PingPong', username: 'admin_phoco', password: 'admin', status: 'active', role: 'CLUB_ADMIN' },
-  { id: 'club-saigon', name: 'CLB Sài Gòn Team', username: 'admin_saigon', password: 'admin', status: 'active', role: 'CLUB_ADMIN' },
+  // Updated demo club
+  { id: 'club-demopro', name: 'CLB Bóng Bàn Demo Pro', username: 'demopro', password: 'demopro@123', status: 'active', role: 'CLUB_ADMIN', subscriptionTier: 'MONTHLY' },
+  { id: 'club-hanoi', name: 'CLB Bóng Bàn 3T', username: 'admin_sg', password: 'admin', status: 'active', role: 'CLUB_ADMIN', subscriptionTier: 'FREE' },
+  { id: 'club-phoco', name: 'CLB Phố Cổ PingPong', username: 'admin_phoco', password: 'admin', status: 'active', role: 'CLUB_ADMIN', subscriptionTier: 'FREE' },
+  { id: 'club-saigon', name: 'CLB Sài Gòn Team', username: 'admin_saigon', password: 'admin', status: 'active', role: 'CLUB_ADMIN', subscriptionTier: 'FREE' },
 ];
 
 export const INITIAL_PLAYERS: Player[] = [

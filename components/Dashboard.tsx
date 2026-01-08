@@ -1,305 +1,299 @@
 
 import React, { useState, useMemo } from 'react';
-import { Player, Service, Session, SessionStatus, SessionService } from '../types';
-import CheckInModal from './CheckInModal';
+import { Player, Session, Service, SessionService, SessionStatus } from '../types';
 import SessionCard from './SessionCard';
+import CheckInModal from './CheckInModal';
+import { getSmartInsight } from '../services/geminiService';
 
 interface DashboardProps {
   players: Player[];
   services: Service[];
   sessions: Session[];
   sessionServices: SessionService[];
-  onAddPlayer: (p: Player) => void;
-  onAddSession: (s: Session) => void;
-  // Updated signature to match (Session, number) as expected by App.tsx handleCheckOut
+  role?: string; // Added role prop
+  onAddPlayer: (p: Partial<Player>) => void;
+  onAddSession: (s: Partial<Session>) => void;
   onUpdateSession: (s: Session, total: number) => void;
-  onAddSessionService: (ss: SessionService) => void;
+  onAddSessionService: (ss: Partial<SessionService>) => void;
   onUpdateSessionService: (ss: SessionService) => void;
   onRemoveSessionService: (id: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  players, services, sessions, sessionServices, 
-  onAddPlayer, onAddSession, onUpdateSession, onAddSessionService, onUpdateSessionService, onRemoveSessionService
+  players, services, sessions, sessionServices, role,
+  onAddPlayer, onAddSession, onUpdateSession, 
+  onAddSessionService, onUpdateSessionService, onRemoveSessionService 
 }) => {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [pendingCheckout, setPendingCheckout] = useState<{session: Session, total: number} | null>(null);
+  
+  // AI Insight State
+  const [aiInsight, setAiInsight] = useState<{insight: string; advice: string} | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
-  const playingSessions = sessions.filter(s => s.status === SessionStatus.PLAYING);
-  const todayFinishedSessions = sessions.filter(s => 
-    s.status === SessionStatus.FINISHED && 
-    new Date(s.checkInTime).toDateString() === new Date().toDateString()
-  );
+  const isSuperAdmin = role === 'SUPER_ADMIN';
 
+  const playingSessions = useMemo(() => sessions.filter(s => s.status === SessionStatus.PLAYING), [sessions]);
+  
   const stats = useMemo(() => {
-    const revenue = sessions
-      .filter(s => 
-        s.status === SessionStatus.FINISHED && 
-        new Date(s.checkInTime).toDateString() === new Date().toDateString()
-      )
-      .reduce((sum, s) => sum + s.totalAmount, 0);
-    return {
-      activePlayers: playingSessions.length,
-      todayRevenue: revenue,
-      totalToday: playingSessions.length + todayFinishedSessions.length
-    };
-  }, [sessions, playingSessions.length, todayFinishedSessions.length]);
+    const today = new Date().toDateString();
+    const finishedToday = sessions.filter(s => s.status === SessionStatus.FINISHED && new Date(s.checkOutTime || '').toDateString() === today);
+    const revenueToday = finishedToday.reduce((sum, s) => sum + s.totalAmount, 0);
+    return { revenue: revenueToday, activeCount: playingSessions.length, finishedCount: finishedToday.length };
+  }, [sessions, playingSessions]);
 
-  const handleFinalCheckOut = () => {
-    if (!pendingCheckout) return;
-    
-    // Correctly passing both session and total as required by onUpdateSession
-    onUpdateSession(pendingCheckout.session, pendingCheckout.total);
-    setPendingCheckout(null);
-    setSelectedSessionId(null);
+  const selectedSession = useMemo(() => 
+    playingSessions.find(s => s.id === selectedSessionId), 
+  [playingSessions, selectedSessionId]);
+
+  const selectedPlayer = useMemo(() => 
+    selectedSession ? players.find(p => p.id === selectedSession.playerId) : null,
+  [selectedSession, players]);
+
+  const selectedSS = useMemo(() => 
+    selectedSession ? sessionServices.filter(ss => ss.sessionId === selectedSession.id) : [],
+  [selectedSession, sessionServices]);
+
+  const handleGetAiInsight = async () => {
+    setIsAiLoading(true);
+    try {
+      const result = await getSmartInsight(stats);
+      setAiInsight(result);
+    } catch (error) {
+      console.error(error);
+      alert("Không thể kết nối với trợ lý AI lúc này.");
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
-  const selectedSession = playingSessions.find(s => s.id === selectedSessionId);
-  const selectedPlayer = selectedSession ? players.find(p => p.id === selectedSession.playerId) : null;
+  // Helper component for elapsed time in list
+  const ElapsedTimer: React.FC<{ startTime: string }> = ({ startTime }) => {
+    const [elapsed, setElapsed] = useState('');
+    
+    React.useEffect(() => {
+      const update = () => {
+        const diff = Math.floor((new Date().getTime() - new Date(startTime).getTime()) / 1000);
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        setElapsed(`${h > 0 ? h + 'h ' : ''}${m}m`);
+      };
+      update();
+      const timer = setInterval(update, 60000);
+      return () => clearInterval(timer);
+    }, [startTime]);
+
+    return <span className="font-mono text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{elapsed}</span>;
+  };
 
   return (
     <div className="space-y-6">
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-xl flex items-center justify-center text-green-600 text-lg md:text-xl">
-            <i className="fa-solid fa-users"></i>
-          </div>
-          <div>
-            <p className="text-xs md:text-sm text-gray-500">Đang chơi</p>
-            <p className="text-xl md:text-2xl font-bold">{stats.activePlayers} người</p>
-          </div>
+      {/* Chỉ số vận hành nhanh */}
+      <div className="flex items-center justify-between">
+         <div>
+            <h3 className="text-2xl font-black text-slate-800 tracking-tight">{isSuperAdmin ? 'Tổng quan Hệ thống' : 'Tổng quan hôm nay'}</h3>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Số liệu kinh doanh thời gian thực</p>
+         </div>
+         <button 
+           onClick={handleGetAiInsight}
+           disabled={isAiLoading}
+           className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-5 py-2.5 rounded-2xl font-black text-xs shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform flex items-center gap-2"
+         >
+           {isAiLoading ? (
+             <i className="fa-solid fa-spinner animate-spin"></i>
+           ) : (
+             <i className="fa-solid fa-wand-magic-sparkles"></i>
+           )}
+           {isAiLoading ? 'ĐANG PHÂN TÍCH...' : 'PHÂN TÍCH AI'}
+         </button>
+      </div>
+
+      {/* AI Insight Card */}
+      {aiInsight && (
+        <div className="bg-gradient-to-br from-violet-50 to-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm animate-in slide-in-from-top-4 fade-in duration-500">
+           <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl text-indigo-600 shadow-sm shrink-0">
+                <i className="fa-solid fa-robot"></i>
+              </div>
+              <div className="flex-1">
+                 <h4 className="font-black text-indigo-900 text-lg mb-1">Trợ lý Quản lý thông minh</h4>
+                 <div className="space-y-3 mt-3">
+                    <div className="bg-white/60 p-4 rounded-2xl border border-indigo-100/50">
+                       <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">NHẬN XÉT</p>
+                       <p className="text-indigo-900 font-medium text-sm leading-relaxed">{aiInsight.insight}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
+                       <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">LỜI KHUYÊN</p>
+                       <p className="text-slate-800 font-bold text-sm leading-relaxed"><i className="fa-solid fa-check-circle text-emerald-500 mr-2"></i>{aiInsight.advice}</p>
+                    </div>
+                 </div>
+              </div>
+              <button onClick={() => setAiInsight(null)} className="text-indigo-300 hover:text-indigo-500"><i className="fa-solid fa-xmark"></i></button>
+           </div>
         </div>
-        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 text-lg md:text-xl">
-            <i className="fa-solid fa-money-bill-trend-up"></i>
-          </div>
-          <div>
-            <p className="text-xs md:text-sm text-gray-500">Doanh thu hôm nay</p>
-            <p className="text-xl md:text-2xl font-bold text-blue-600">{stats.todayRevenue.toLocaleString()} đ</p>
-          </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center gap-5">
+           <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+             <i className="fa-solid fa-sack-dollar"></i>
+           </div>
+           <div>
+             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">{isSuperAdmin ? 'Tổng doanh thu (Realtime)' : 'Doanh thu hôm nay'}</p>
+             <h3 className="text-2xl font-black text-gray-800">{stats.revenue.toLocaleString()}đ</h3>
+           </div>
         </div>
-        <div className="bg-white p-5 md:p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 sm:col-span-2 lg:col-span-1">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 text-lg md:text-xl">
-            <i className="fa-solid fa-calendar-check"></i>
-          </div>
-          <div>
-            <p className="text-xs md:text-sm text-gray-500">Lượt chơi hôm nay</p>
-            <p className="text-xl md:text-2xl font-bold">{stats.totalToday} lượt</p>
-          </div>
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center gap-5">
+           <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+             <i className="fa-solid fa-user-clock"></i>
+           </div>
+           <div>
+             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">{isSuperAdmin ? 'Tổng khách đang chơi' : 'Số người đang chơi'}</p>
+             <h3 className="text-2xl font-black text-indigo-600">{stats.activeCount} người</h3>
+           </div>
+        </div>
+        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center gap-5">
+           <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+             <i className="fa-solid fa-circle-check"></i>
+           </div>
+           <div>
+             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">{isSuperAdmin ? 'Tổng lượt chơi hôm nay' : 'Số lượt người đã chơi hôm nay'}</p>
+             <h3 className="text-2xl font-black text-emerald-600">{stats.finishedCount} lượt</h3>
+           </div>
         </div>
       </div>
 
-      {/* Main Actions */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-lg md:text-xl font-bold text-gray-800">Đang hoạt động</h2>
-        <button 
-          onClick={() => setShowCheckIn(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all w-full sm:w-auto"
-        >
-          <i className="fa-solid fa-plus"></i>
-          Check-in mới
-        </button>
-      </div>
-
-      {/* Sessions List (Condensed) */}
-      {playingSessions.length === 0 ? (
-        <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-8 md:p-12 text-center">
-          <div className="w-14 h-14 md:w-16 md:h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-300">
-            <i className="fa-solid fa-user-clock text-2xl md:text-3xl"></i>
+      {/* VẬN HÀNH LƯỢT CHƠI - Ẩn đối với Super Admin */}
+      {!isSuperAdmin && (
+        <>
+          <div className="flex justify-between items-center pt-4">
+            <div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">Vận hành lượt chơi</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Quản lý khách ra vào và dịch vụ</p>
+            </div>
+            <button 
+              onClick={() => setShowCheckIn(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl shadow-blue-600/20 transition-all active:scale-95 group"
+            >
+              <i className="fa-solid fa-user-plus group-hover:scale-110 transition-transform"></i>
+              THÊM NGƯỜI CHƠI
+            </button>
           </div>
-          <h3 className="text-base md:text-lg font-medium text-gray-700 mb-1">Chưa có người chơi nào</h3>
-          <p className="text-xs md:text-sm text-gray-400">Bấm "Check-in mới" để bắt đầu.</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-50/50 border-b border-gray-100">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Người chơi</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Thời gian vào</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Tạm tính</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Hành động</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {playingSessions.map(session => {
-                  const player = players.find(p => p.id === session.playerId);
-                  const sServices = sessionServices.filter(ss => ss.sessionId === session.id);
-                  const currentTotal = sServices.reduce((sum, ss) => sum + ss.totalAmount, 0);
-                  const isMember = player?.membershipEndDate && new Date(player.membershipEndDate) >= new Date();
 
-                  return (
-                    <tr key={session.id} className="hover:bg-blue-50/30 transition-colors group cursor-pointer" onClick={() => setSelectedSessionId(session.id)}>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shadow-sm ${isMember ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
-                            {player?.name?.charAt(0) || '?'}
+          <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-50">
+                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Khách hàng</th>
+                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Vào lúc</th>
+                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Thời gian chơi</th>
+                    <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tạm tính</th>
+                    <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {playingSessions.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-24 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 shadow-inner">
+                            <i className="fa-solid fa-table-tennis-paddle-ball text-4xl text-gray-200"></i>
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-gray-800">{player?.name}</span>
-                              {isMember && (
-                                <span className="bg-amber-500 text-white text-[8px] px-1 py-0.5 rounded-md font-black uppercase">Member</span>
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-400">{player?.phone || 'Khách vãng lai'}</span>
-                          </div>
+                          <p className="font-black uppercase tracking-widest text-gray-300">Chưa có khách đang chơi</p>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-medium text-gray-600">{new Date(session.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          <span className="text-[10px] text-gray-400 font-mono">Bắt đầu lúc {new Date(session.checkInTime).toLocaleDateString('vi-VN')}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-sm font-black text-gray-900">{currentTotal.toLocaleString()}đ</span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button className="bg-gray-100 text-gray-600 px-4 py-2 rounded-xl text-xs font-bold group-hover:bg-blue-600 group-hover:text-white transition-all">
-                          Chi tiết
-                        </button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Session Detail Modal - FIXED CLOSE BUTTON AND UX */}
-      {selectedSession && selectedPlayer && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4 overflow-y-auto"
-          onClick={() => setSelectedSessionId(null)}
-        >
-          <div 
-            className="w-full max-w-xl animate-in zoom-in duration-200 relative"
-            onClick={e => e.stopPropagation()} // Ngăn chặn click bên trong modal làm đóng modal
-          >
-            {/* Improved Floating Close Button */}
-            <button 
-              onClick={() => setSelectedSessionId(null)}
-              className="absolute -top-2 -right-2 lg:-top-4 lg:-right-4 z-[90] w-10 h-10 bg-white text-gray-800 rounded-full flex items-center justify-center shadow-2xl hover:bg-gray-100 transition-all border border-gray-100 active:scale-90"
-              title="Đóng cửa sổ"
-            >
-              <i className="fa-solid fa-xmark text-lg"></i>
-            </button>
-            
-            <SessionCard 
-              session={selectedSession}
-              player={selectedPlayer}
-              services={services}
-              sessionServices={sessionServices.filter(ss => ss.sessionId === selectedSession.id)}
-              onUpdateSession={onUpdateSession}
-              onAddService={onAddSessionService}
-              onUpdateService={onUpdateSessionService}
-              onRemoveService={onRemoveSessionService}
-              onCheckOutRequest={(sess, total) => setPendingCheckout({session: sess, total})}
-            />
-
-            {/* Thêm một nút đóng phụ ở dưới cùng trên Mobile để dễ thao tác */}
-            <div className="mt-4 lg:hidden">
-              <button 
-                onClick={() => setSelectedSessionId(null)}
-                className="w-full py-3 bg-white/20 backdrop-blur-md text-white border border-white/30 rounded-2xl font-bold flex items-center justify-center gap-2"
-              >
-                <i className="fa-solid fa-chevron-down"></i>
-                Đóng chi tiết
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Receipt Modal */}
-      {pendingCheckout && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white w-full max-w-md my-auto rounded-[2rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
-            <div className="bg-slate-900 p-6 md:p-8 text-center text-white relative">
-              <div className="w-14 h-14 md:w-16 md:h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-xl shadow-blue-600/20">
-                <i className="fa-solid fa-receipt text-xl md:text-2xl"></i>
-              </div>
-              <h3 className="text-xl md:text-2xl font-black uppercase tracking-tight">Hóa đơn</h3>
-              <p className="text-slate-400 text-xs mt-1">Cám ơn quý khách đã sử dụng dịch vụ</p>
-            </div>
-
-            <div className="p-6 md:p-8 space-y-6">
-              <div className="flex justify-between items-center pb-4 border-b border-gray-100">
-                <span className="text-gray-400 font-bold text-[10px] md:text-xs uppercase tracking-widest">Khách hàng</span>
-                <span className="text-gray-800 font-black truncate max-w-[150px]">{players.find(p => p.id === pendingCheckout.session.playerId)?.name}</span>
-              </div>
-
-              <div className="space-y-3">
-                <p className="text-gray-400 font-bold text-[10px] md:text-xs uppercase tracking-widest">Chi tiết sử dụng</p>
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                  {sessionServices
-                    .filter(ss => ss.sessionId === pendingCheckout.session.id)
-                    .map(ss => {
-                      const s = services.find(x => x.id === ss.serviceId);
+                  ) : (
+                    playingSessions.map(session => {
+                      const player = players.find(p => p.id === session.playerId);
+                      const ss = sessionServices.filter(s => s.sessionId === session.id);
+                      const total = ss.reduce((sum, item) => sum + item.totalAmount, 0);
+                      
                       return (
-                        <div key={ss.id} className="flex justify-between items-center text-xs md:text-sm">
-                          <span className="text-gray-600 truncate mr-2">{s?.name} x{ss.quantity}</span>
-                          <span className="font-bold text-gray-800 shrink-0">{ss.totalAmount.toLocaleString()}đ</span>
-                        </div>
+                        <tr 
+                          key={session.id} 
+                          onClick={() => setSelectedSessionId(session.id)}
+                          className="hover:bg-blue-50/50 transition-colors cursor-pointer group"
+                        >
+                          <td className="px-8 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-sm shadow-sm group-hover:scale-110 transition-transform">
+                                {player?.name?.charAt(0) || '?'}
+                              </div>
+                              <div>
+                                <p className="font-black text-slate-800 text-sm tracking-tight">{player?.name || 'Ẩn danh'}</p>
+                                <p className="text-[10px] text-slate-400 font-bold">{player?.phone || 'Vãng lai'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="text-xs font-bold text-slate-500">
+                              {new Date(session.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <ElapsedTimer startTime={session.checkInTime} />
+                          </td>
+                          <td className="px-6 py-4 text-sm font-black text-slate-800">
+                            {total.toLocaleString()}đ
+                          </td>
+                          <td className="px-8 py-4 text-right">
+                            <button className="px-4 py-2 rounded-xl bg-white border border-slate-100 text-slate-500 font-bold text-xs group-hover:bg-blue-600 group-hover:text-white group-hover:border-blue-600 transition-all shadow-sm">
+                              Chi tiết
+                            </button>
+                          </td>
+                        </tr>
                       );
-                    })}
-                </div>
-              </div>
-
-              <div className="pt-6 border-t-2 border-dashed border-gray-100">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-500 font-bold">Tổng cộng</span>
-                  <span className="text-2xl md:text-3xl font-black text-blue-600">{pendingCheckout.total.toLocaleString()}đ</span>
-                </div>
-                <p className="text-[9px] md:text-[10px] text-gray-400 text-right italic font-medium">Giá đã bao gồm tất cả phụ phí và tiền sân</p>
-              </div>
-            </div>
-
-            <div className="p-6 md:p-8 pt-0 flex gap-3">
-              <button 
-                onClick={() => setPendingCheckout(null)}
-                className="flex-1 py-3 md:py-4 bg-gray-50 text-gray-400 font-black rounded-2xl hover:bg-gray-100 transition-all text-sm"
-              >
-                HỦY
-              </button>
-              <button 
-                onClick={handleFinalCheckOut}
-                className="flex-[2] py-3 md:py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-600/30 hover:bg-blue-700 transition-all active:scale-95 text-sm"
-              >
-                THU TIỀN
-              </button>
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-      )}
 
-      {showCheckIn && (
-        <CheckInModal 
-          players={players}
-          activeSessions={playingSessions}
-          onClose={() => setShowCheckIn(false)}
-          onCheckIn={(player) => {
-            if (!players.find(p => p.id === player.id)) {
-              onAddPlayer(player);
-            }
-            const newSession: Session = {
-              id: `sess-${Date.now()}`,
-              clubId: '',
-              playerId: player.id,
-              checkInTime: new Date().toISOString(),
-              status: SessionStatus.PLAYING,
-              totalAmount: 0
-            };
-            onAddSession(newSession);
-            setShowCheckIn(false);
-          }}
-        />
+          {/* Modal Chi tiết lượt chơi */}
+          {selectedSession && selectedPlayer && (
+            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[110] flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-lg rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300 relative">
+                <SessionCard 
+                  session={selectedSession}
+                  player={selectedPlayer}
+                  services={services}
+                  sessionServices={selectedSS}
+                  onUpdateSession={(s, total) => {
+                    onUpdateSession(s, total);
+                    setSelectedSessionId(null);
+                  }}
+                  onAddService={onAddSessionService}
+                  onUpdateService={onUpdateSessionService}
+                  onRemoveService={onRemoveSessionService}
+                  onCheckOutRequest={(s, total) => {
+                    onUpdateSession(s, total);
+                    setSelectedSessionId(null);
+                  }}
+                  onClose={() => setSelectedSessionId(null)}
+                />
+              </div>
+            </div>
+          )}
+
+          {showCheckIn && (
+            <CheckInModal 
+              players={players}
+              activeSessions={playingSessions}
+              onClose={() => setShowCheckIn(false)}
+              onCheckIn={(player) => {
+                if (!player.id) {
+                  onAddPlayer(player);
+                } else {
+                  onAddSession({ playerId: player.id });
+                  setShowCheckIn(false);
+                }
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );

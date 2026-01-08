@@ -113,43 +113,43 @@ const Reports: React.FC<ReportsProps> = ({ sessions, expenses, membershipPayment
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div className="bg-white p-2 rounded-2xl shadow-sm border border-gray-100 flex gap-1 w-fit">
+        <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 flex gap-1 w-fit">
           {['day', 'week', 'month'].map(id => (
-            <button key={id} onClick={() => setTimeFilter(id as any)} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${timeFilter === id ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>
+            <button key={id} onClick={() => setTimeFilter(id as any)} className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${timeFilter === id ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
               {id === 'day' ? 'Theo Ngày' : id === 'week' ? 'Theo Tuần' : 'Theo Tháng'}
             </button>
           ))}
         </div>
-        <div className="bg-white px-4 py-2 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
+        <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center"><i className="fa-solid fa-users"></i></div>
-          <div><p className="text-[10px] text-gray-400 font-black uppercase">Tổng lượt khách</p><p className="text-lg font-black text-gray-800">{statsSummary.sessionCount}</p></div>
+          <div><p className="text-[10px] text-slate-400 font-black uppercase">Tổng lượt khách</p><p className="text-lg font-black text-slate-800">{statsSummary.sessionCount}</p></div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h4 className="font-bold text-gray-800 mb-6 flex justify-between items-center"><span>Doanh thu & Chi phí</span><span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-md uppercase font-black">Tài chính</span></h4>
-          <div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><Tooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} /><Legend iconType="circle" /><Bar dataKey="Dịch vụ" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} barSize={24} /><Bar dataKey="Hội viên" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={24} /><Bar dataKey="Chi phí" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} /></BarChart></ResponsiveContainer></div>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h4 className="font-bold text-slate-800 mb-6 flex justify-between items-center"><span>Doanh thu & Chi phí</span><span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded-md uppercase font-black">Tài chính</span></h4>
+          <div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} /><Legend iconType="circle" /><Bar dataKey="Dịch vụ" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} barSize={24} /><Bar dataKey="Hội viên" stackId="a" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={24} /><Bar dataKey="Chi phí" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} /></BarChart></ResponsiveContainer></div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h4 className="font-bold text-gray-800 mb-6 flex justify-between items-center"><span>Lưu lượng khách chơi</span><span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md uppercase font-black">Thống kê lượt</span></h4>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h4 className="font-bold text-slate-800 mb-6 flex justify-between items-center"><span>Lưu lượng khách chơi</span><span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md uppercase font-black">Thống kê lượt</span></h4>
           <div className="h-80"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData}><defs><linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} /><Area type="monotone" dataKey="Lượt khách" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" dot={{r: 4, fill: '#6366f1'}} /></AreaChart></ResponsiveContainer></div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h4 className="font-bold text-gray-800 mb-6">Tỉ trọng Đóng góp Doanh thu</h4>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h4 className="font-bold text-slate-800 mb-6">Tỉ trọng Đóng góp Doanh thu</h4>
           <div className="h-80 flex flex-col items-center">
             {serviceDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%"><PieChart margin={{ top: 20, right: 30, left: 30, bottom: 20 }}><Pie data={serviceDistribution} cx="50%" cy="45%" innerRadius={65} outerRadius={105} paddingAngle={4} dataKey="value" labelLine={false} label={renderCustomizedLabel}>{serviceDistribution.map((_, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="none" />))}</Pie><Tooltip formatter={(value: number) => `${value.toLocaleString()}đ`} contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} /><Legend layout="horizontal" verticalAlign="bottom" align="center" iconType="circle" /></PieChart></ResponsiveContainer>
             ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-400"><i className="fa-solid fa-chart-pie text-4xl mb-2 opacity-20"></i><p className="text-sm">Chưa có dữ liệu giao dịch</p></div>
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400"><i className="fa-solid fa-chart-pie text-4xl mb-2 opacity-20"></i><p className="text-sm">Chưa có dữ liệu giao dịch</p></div>
             )}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-          <h4 className="font-bold text-gray-800 mb-6">Biến động Lợi nhuận ròng</h4>
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h4 className="font-bold text-slate-800 mb-6">Biến động Lợi nhuận ròng</h4>
           <div className="h-80"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12}} /><Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)'}} /><Line type="monotone" dataKey="Lợi nhuận" stroke="#10b981" strokeWidth={3} dot={{r: 4, fill: '#10b981'}} activeDot={{r: 8}} /></LineChart></ResponsiveContainer></div>
         </div>
       </div>
@@ -160,10 +160,10 @@ const Reports: React.FC<ReportsProps> = ({ sessions, expenses, membershipPayment
           <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-xl"><i className="fa-solid fa-vault"></i></div><div><p className="text-slate-400 text-xs font-black uppercase tracking-widest">Tổng thu tích lũy</p><h5 className="text-3xl font-black">{statsSummary.totalRevenue.toLocaleString()}<span className="text-sm ml-1 text-slate-500">đ</span></h5></div></div>
           <div className="grid grid-cols-2 gap-4 mt-8 pt-6 border-t border-slate-800"><div><p className="text-slate-500 text-[10px] font-bold uppercase">Dịch vụ</p><p className="font-bold">{statsSummary.sessionRevenue.toLocaleString()}đ</p></div><div><p className="text-slate-500 text-[10px] font-bold uppercase">Hội viên</p><p className="font-bold text-amber-500">{statsSummary.membershipRevenue.toLocaleString()}đ</p></div></div>
         </div>
-        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-xl relative overflow-hidden group">
+        <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full -translate-y-12 translate-x-12 group-hover:scale-150 transition-transform duration-700"></div>
-          <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center text-xl"><i className="fa-solid fa-money-bill-transfer"></i></div><div><p className="text-gray-400 text-xs font-black uppercase tracking-widest">Tổng chi tích lũy</p><h5 className="text-3xl font-black text-red-600">{statsSummary.totalExpense.toLocaleString()}<span className="text-sm ml-1 text-gray-400">đ</span></h5></div></div>
-          <div className="mt-8 pt-6 border-t border-gray-50 flex justify-between items-center"><div><p className="text-gray-400 text-[10px] font-bold uppercase">Lợi nhuận ròng</p><p className={`text-xl font-black ${statsSummary.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{statsSummary.profit.toLocaleString()}đ</p></div><div className="text-right"><p className="text-gray-400 text-[10px] font-bold uppercase">Tổng lượt chơi</p><p className="text-xl font-black text-gray-800">{statsSummary.sessionCount}</p></div></div>
+          <div className="flex items-center gap-4 mb-4"><div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center text-xl"><i className="fa-solid fa-money-bill-transfer"></i></div><div><p className="text-slate-400 text-xs font-black uppercase tracking-widest">Tổng chi tích lũy</p><h5 className="text-3xl font-black text-red-600">{statsSummary.totalExpense.toLocaleString()}<span className="text-sm ml-1 text-slate-400">đ</span></h5></div></div>
+          <div className="mt-8 pt-6 border-t border-slate-50 flex justify-between items-center"><div><p className="text-slate-400 text-[10px] font-bold uppercase">Lợi nhuận ròng</p><p className={`text-xl font-black ${statsSummary.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{statsSummary.profit.toLocaleString()}đ</p></div><div className="text-right"><p className="text-slate-400 text-[10px] font-bold uppercase">Tổng lượt chơi</p><p className="text-xl font-black text-slate-800">{statsSummary.sessionCount}</p></div></div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Expense } from '../types';
-import { formatCurrencyInput, parseCurrencyString } from '../utils/formatters';
+import { formatCurrencyInput, parseCurrencyString, formatDate } from '../utils/formatters';
 
 interface ExpenseManagerProps {
   clubId: string;
@@ -63,7 +63,8 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ clubId, expenses, onAdd
     if (!validate()) return;
     
     const expenseData = {
-      id: editingExpense ? editingExpense.id : `exp-${Date.now()}`,
+      // Use empty string for new items so prepareForDb strips it and DB generates UUID
+      id: editingExpense ? editingExpense.id : '',
       clubId,
       name: form.name,
       description: form.description,
@@ -132,7 +133,7 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ clubId, expenses, onAdd
                   <tr key={e.id} className="hover:bg-red-50/20 transition-colors group">
                     <td className="px-8 py-4">
                        <span className="text-sm font-bold text-slate-500 whitespace-nowrap">
-                         {new Date(e.date).toLocaleDateString('vi-VN')}
+                         {formatDate(e.date)}
                        </span>
                     </td>
                     <td className="px-6 py-4">

@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { ViewType } from '../types';
+import { ViewType, Club } from '../types';
+import { formatDate } from '../utils/formatters';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -10,6 +11,8 @@ interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   role: 'SUPER_ADMIN' | 'CLUB_ADMIN';
+  subscriptionTier?: string;
+  subscriptionEndDate?: string;
 }
 
 interface MenuItem {
@@ -17,6 +20,7 @@ interface MenuItem {
   icon: string;
   label: string;
   badge?: string;
+  isLocked?: boolean;
 }
 
 interface MenuGroup {
@@ -24,8 +28,12 @@ interface MenuGroup {
   items: MenuItem[];
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLogout, isOpen, onClose, role }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  currentView, setView, clubName, onLogout, isOpen, onClose, role, subscriptionTier, subscriptionEndDate 
+}) => {
   const isSuper = role === 'SUPER_ADMIN';
+  const tier = (subscriptionTier || 'FREE').toUpperCase();
+  const isFreeTier = !isSuper && tier === 'FREE';
 
   const clubMenuGroups: MenuGroup[] = [
     {
@@ -45,8 +53,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLog
     {
       title: 'Dữ liệu báo cáo',
       items: [
-        { id: 'history', icon: 'fa-history', label: 'Lịch sử lượt chơi' },
-        { id: 'reports', icon: 'fa-file-invoice-dollar', label: 'Báo cáo tài chính' },
+        { id: 'history', icon: 'fa-history', label: 'Lịch sử lượt chơi', isLocked: isFreeTier },
+        { id: 'reports', icon: 'fa-file-invoice-dollar', label: 'Báo cáo tài chính', isLocked: isFreeTier },
       ]
     }
   ];
@@ -55,8 +63,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLog
     {
       title: 'Quản trị hệ thống',
       items: [
+        { id: 'dashboard', icon: 'fa-chart-pie', label: 'Tổng quan hệ thống' },
         { id: 'admin-clubs', icon: 'fa-sitemap', label: 'Quản lý các cơ sở' },
-        { id: 'admin-reports', icon: 'fa-earth-asia', label: 'Báo cáo hệ thống' },
+        { id: 'admin-saas', icon: 'fa-sack-dollar', label: 'Doanh thu SaaS' },
+        { id: 'admin-reports', icon: 'fa-earth-asia', label: 'Báo cáo vận hành' },
       ]
     },
     {
@@ -76,6 +86,17 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLog
     ${isOpen ? 'translate-x-0' : '-translate-x-full'}
   `;
 
+  const isExpired = subscriptionEndDate ? new Date(subscriptionEndDate) < new Date() : false;
+
+  const getTierLabel = (t: string) => {
+    switch (t) {
+      case 'YEARLY': return 'Gói Pro (Năm)';
+      case 'MONTHLY': return 'Gói Chuyên Nghiệp (Tháng)';
+      case 'FREE': return 'Gói Dùng Thử (Free)';
+      default: return 'Gói Dùng Thử (Free)';
+    }
+  };
+
   return (
     <aside className={sidebarClasses}>
       <div className="p-6 flex items-center justify-between border-b border-slate-800">
@@ -85,10 +106,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLog
           </div>
           <span className="font-black text-xl tracking-tight">PingPong Pro</span>
         </div>
-        <button 
-          onClick={onClose}
-          className="lg:hidden w-10 h-10 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
-        >
+        <button onClick={onClose} className="lg:hidden w-10 h-10 rounded-full bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
           <i className="fa-solid fa-chevron-left"></i>
         </button>
       </div>
@@ -96,27 +114,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLog
       <nav className="flex-1 mt-6 px-4 overflow-y-auto scrollbar-hide pb-6">
         {groups.map((group, groupIdx) => (
           <div key={groupIdx} className="mb-6 last:mb-0">
-            <p className="px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">
-              {group.title}
-            </p>
+            <p className="px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">{group.title}</p>
             <ul className="space-y-1.5">
               {group.items.map((item) => (
                 <li key={item.id}>
                   <button
+                    disabled={item.isLocked}
                     onClick={() => setView(item.id)}
-                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-200 group/nav ${
+                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-200 group/nav relative ${
                       currentView === item.id 
                         ? (isSuper ? 'bg-indigo-600' : 'bg-blue-600') + ' text-white shadow-lg shadow-black/20' 
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        : item.isLocked ? 'text-slate-600 cursor-not-allowed opacity-60' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     }`}
                   >
-                    <i className={`fa-solid ${item.icon} w-5 text-center text-base`}></i>
+                    <i className={`fa-solid ${item.isLocked ? 'fa-lock' : item.icon} w-5 text-center text-base`}></i>
                     <span className="font-bold text-sm flex-1 text-left">{item.label}</span>
-                    {item.badge && (
-                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${currentView === item.id ? 'bg-white/20 text-white' : 'bg-blue-600 text-white'}`}>
-                        {item.badge}
-                      </span>
-                    )}
+                    {item.isLocked && <span className="text-[8px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded font-black">PRO</span>}
                   </button>
                 </li>
               ))}
@@ -126,19 +139,42 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLog
       </nav>
 
       <div className="p-6 border-t border-slate-800 bg-slate-900/50">
-        <div className="bg-slate-800/40 rounded-2xl p-4 mb-4 border border-slate-800/50">
+        <div className={`rounded-3xl p-5 mb-4 border ${isExpired ? 'bg-red-900/20 border-red-800/50' : 'bg-slate-800/40 border-slate-800/50 shadow-inner'}`}>
+          {!isSuper && (
+            <div className="mb-4 pb-4 border-b border-slate-700/50">
+              <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1.5">Cơ sở vận hành</p>
+              <p className="text-sm font-black text-white truncate">
+                {clubName}
+              </p>
+            </div>
+          )}
+
           <p className="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1.5">
-            {isSuper ? 'QUYỀN HẠN' : 'ĐANG QUẢN LÝ'}
+            {isSuper ? 'Quyền quản trị viên' : 'Gói phần mềm'}
           </p>
-          <p className="text-sm font-black truncate text-slate-200">
-            {isSuper ? 'Super Administrator' : clubName}
+          <p className={`text-xs font-black truncate ${isExpired ? 'text-red-400' : 'text-blue-400'}`}>
+            {isSuper ? 'Hệ thống (Super Admin)' : getTierLabel(tier)}
           </p>
+          {!isSuper && subscriptionEndDate && (
+            <div className="mt-2.5 pt-2.5 border-t border-slate-700/30">
+              <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                {isExpired ? 'Đã hết hạn vào:' : 'Thời hạn đến:'}
+              </p>
+              <p className={`text-[11px] font-black mt-0.5 ${isExpired ? 'text-red-500' : 'text-emerald-500'}`}>
+                {formatDate(subscriptionEndDate)}
+              </p>
+            </div>
+          )}
         </div>
         <button 
-          onClick={onLogout}
-          className="w-full flex items-center gap-4 px-4 py-3.5 text-red-400 hover:bg-red-500/10 rounded-2xl transition-all font-bold text-sm"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onLogout();
+          }} 
+          className="w-full flex items-center gap-4 px-4 py-3.5 text-red-400 hover:bg-red-500/10 rounded-2xl transition-all font-black text-xs uppercase tracking-widest cursor-pointer group"
         >
-          <i className="fa-solid fa-power-off w-5"></i>
+          <i className="fa-solid fa-power-off w-5 group-hover:scale-110 transition-transform"></i>
           <span>Đăng xuất</span>
         </button>
       </div>

@@ -9,6 +9,8 @@ export enum ServiceStatus {
   INACTIVE = 'inactive'
 }
 
+export type SubscriptionTier = 'FREE' | 'MONTHLY' | 'YEARLY';
+
 export interface Club {
   id: string;
   name: string;
@@ -19,6 +21,21 @@ export interface Club {
   address?: string;
   status: 'active' | 'inactive';
   role: 'SUPER_ADMIN' | 'CLUB_ADMIN';
+  subscriptionTier: SubscriptionTier;
+  subscriptionStartDate?: string;
+  subscriptionEndDate?: string;
+}
+
+export interface SubscriptionPayment {
+  id: string;
+  clubId: string;
+  tier: SubscriptionTier;
+  amount: number;
+  paymentDate: string;
+  startDate: string;
+  endDate: string;
+  note?: string;
+  status: 'COMPLETED' | 'PENDING' | 'CANCELLED';
 }
 
 export interface Player {
@@ -92,7 +109,6 @@ export interface Notification {
   targetCount?: number;
 }
 
-// Fixed missing exports for Booking, Match, and Tournament types required by components
 export interface Booking {
   id: string;
   clubId: string;
@@ -122,4 +138,4 @@ export interface Tournament {
   matches: Match[];
 }
 
-export type ViewType = 'dashboard' | 'players' | 'services' | 'expenses' | 'history' | 'reports' | 'admin-clubs' | 'admin-reports';
+export type ViewType = 'dashboard' | 'players' | 'services' | 'expenses' | 'history' | 'reports' | 'admin-clubs' | 'admin-reports' | 'admin-saas';

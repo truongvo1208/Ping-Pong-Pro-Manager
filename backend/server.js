@@ -78,12 +78,12 @@ async function initDatabase() {
       
       const salt = await bcrypt.genSalt(10);
       const hashedSuperPass = await bcrypt.hash('M@i250563533', salt);
-      const hashedDemoPass = await bcrypt.hash('admin', salt);
+      const hashedDemoPass = await bcrypt.hash('demopro@123', salt);
 
       await dbRun("INSERT INTO clubs (id, name, username, password, role) VALUES (?, ?, ?, ?, ?)", 
-        ['super-admin', 'Hệ thống Quản trị', 'admin_supper', hashedSuperPass, 'superadmin']);
+        ['super-admin', 'Hệ thống Quản trị', 'sadmin', hashedSuperPass, 'superadmin']);
       await dbRun("INSERT INTO clubs (id, name, username, password, role) VALUES (?, ?, ?, ?, ?)", 
-        ['club-demo', 'CLB Bóng Bàn 3T', 'admin_sg', hashedDemoPass, 'club']);
+        ['club-demopro', 'CLB Bóng Bàn Demo Pro', 'demopro', hashedDemoPass, 'club']);
     }
     console.log('[DB] Cơ sở dữ liệu đã sẵn sàng.');
   } catch (err) {

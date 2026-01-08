@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { Club, Session, Expense, MembershipPayment, Service, SessionService } from '../../types';
+import { Club, Session, Expense, MembershipPayment, Service, SessionService, SubscriptionPayment } from '../../types';
 import Reports from '../Reports';
 
 interface GlobalReportsProps {
@@ -10,15 +10,15 @@ interface GlobalReportsProps {
   membershipPayments: MembershipPayment[];
   services: Service[];
   sessionServices: SessionService[];
+  subscriptionPayments: SubscriptionPayment[];
 }
 
 const GlobalReports: React.FC<GlobalReportsProps> = ({ 
-  clubs, sessions, expenses, membershipPayments, services, sessionServices 
+  clubs, sessions, expenses, membershipPayments, services, sessionServices
 }) => {
   const [selectedClubId, setSelectedClubId] = useState<string>('all');
 
-  // Fix: Changed 'club' to 'CLUB_ADMIN' to match type definition in types.ts
-  const filteredClubs = clubs.filter(c => c.role === 'CLUB_ADMIN');
+  const filteredClubs = useMemo(() => clubs.filter(c => c.role === 'CLUB_ADMIN'), [clubs]);
 
   const clubSessions = useMemo(() => 
     selectedClubId === 'all' ? sessions : sessions.filter(s => s.clubId === selectedClubId), 
@@ -37,23 +37,28 @@ const GlobalReports: React.FC<GlobalReportsProps> = ({
   [services, selectedClubId]);
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-black text-gray-800">Thống kê toàn hệ thống</h2>
-          <p className="text-xs text-gray-400 mt-1 uppercase font-bold tracking-widest">
-            {selectedClubId === 'all' ? 'Tất cả cơ sở' : clubs.find(c => c.id === selectedClubId)?.name}
-          </p>
+    <div className="space-y-8 pb-20">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-emerald-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl shadow-emerald-200">
+            <i className="fa-solid fa-earth-asia text-2xl"></i>
+          </div>
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none">Báo cáo vận hành</h2>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-2">Theo dõi hiệu quả kinh doanh của các cơ sở trong hệ thống</p>
+          </div>
         </div>
-        
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <label className="text-xs font-black text-gray-400 uppercase whitespace-nowrap">Chọn cơ sở:</label>
+
+        <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 max-w-sm w-full">
+          <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center shrink-0">
+            <i className="fa-solid fa-filter text-xs"></i>
+          </div>
           <select 
             value={selectedClubId}
             onChange={(e) => setSelectedClubId(e.target.value)}
-            className="flex-1 md:w-64 px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm"
+            className="flex-1 bg-transparent border-none font-black text-[11px] outline-none focus:ring-0 cursor-pointer text-slate-600 uppercase tracking-widest"
           >
-            <option value="all">Tổng hợp toàn hệ thống</option>
+            <option value="all">TẤT CẢ CƠ SỞ (TOÀN HỆ THỐNG)</option>
             {filteredClubs.map(club => (
               <option key={club.id} value={club.id}>{club.name}</option>
             ))}
@@ -61,13 +66,15 @@ const GlobalReports: React.FC<GlobalReportsProps> = ({
         </div>
       </div>
 
-      <Reports 
-        sessions={clubSessions}
-        expenses={clubExpenses}
-        membershipPayments={clubMembershipPayments}
-        services={clubServices}
-        sessionServices={sessionServices}
-      />
+      <div className="bg-white p-6 rounded-[3rem] border border-slate-100 shadow-sm overflow-hidden min-h-[600px]">
+        <Reports 
+          sessions={clubSessions}
+          expenses={clubExpenses}
+          membershipPayments={clubMembershipPayments}
+          services={clubServices}
+          sessionServices={sessionServices}
+        />
+      </div>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Session, Player, SessionService, Service, Club } from '../types';
+import { formatDate, removeAccents } from '../utils/formatters';
 
 interface HistoryViewProps {
   sessions: Session[];
@@ -13,16 +14,36 @@ interface HistoryViewProps {
 const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionServices, services, clubs = [] }) => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedClubId, setSelectedClubId] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
   const isSuperAdmin = clubs.length > 0;
 
   const filteredSessions = useMemo(() => {
-    return sessions
-      .filter(s => selectedClubId === 'all' || s.clubId === selectedClubId)
-      .sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
-  }, [sessions, selectedClubId]);
+    let result = sessions;
+
+    // Filter by Club
+    if (selectedClubId !== 'all') {
+      result = result.filter(s => s.clubId === selectedClubId);
+    }
+
+    // Filter by Search Term (Player Name or Phone)
+    if (searchTerm.trim()) {
+      const lowerTerm = removeAccents(searchTerm.toLowerCase().trim());
+      result = result.filter(s => {
+        const player = players.find(p => p.id === s.playerId);
+        if (!player) return false;
+        
+        const name = removeAccents(player.name.toLowerCase());
+        const phone = player.phone || '';
+        
+        return name.includes(lowerTerm) || phone.includes(lowerTerm);
+      });
+    }
+
+    return result.sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
+  }, [sessions, selectedClubId, searchTerm, players]);
 
   const totalPages = Math.ceil(filteredSessions.length / itemsPerPage);
   
@@ -30,17 +51,6 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
     const start = (currentPage - 1) * itemsPerPage;
     return filteredSessions.slice(start, start + itemsPerPage);
   }, [filteredSessions, currentPage]);
-
-  const handleShare = async (session: Session) => {
-    const player = players.find(p => p.id === session.playerId);
-    const text = `Tôi vừa hoàn thành buổi tập bóng bàn tại PingPong Pro! 🏓\nNgười chơi: ${player?.name}\nTổng tiền: ${session.totalAmount.toLocaleString()}đ`;
-    if (navigator.share) {
-      try { await navigator.share({ title: 'Kết quả tập luyện', text: text, url: window.location.href }); } catch (err) {}
-    } else {
-      navigator.clipboard.writeText(text);
-      alert('Đã sao chép nội dung chia sẻ!');
-    }
-  };
 
   // Logic hiển thị danh sách các số trang
   const renderPageNumbers = () => {
@@ -73,30 +83,37 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
 
   return (
     <div className="space-y-4">
-      {/* Top Filter Bar for Super Admin */}
-      {isSuperAdmin && (
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center">
-              <i className="fa-solid fa-filter text-xs"></i>
-            </div>
-            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">Lọc lịch sử hệ thống</h3>
-          </div>
-          <div className="relative w-full max-w-xs">
-            <select
+      {/* Search and Filter Bar */}
+      <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-4">
+        {isSuperAdmin && (
+          <div className="w-full md:w-1/3 relative">
+             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
+                <i className="fa-solid fa-filter"></i>
+             </div>
+             <select
               value={selectedClubId}
               onChange={(e) => { setSelectedClubId(e.target.value); setCurrentPage(1); }}
-              className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer text-sm"
+              className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer text-sm"
             >
               <option value="all">Tất cả Cơ sở</option>
               {clubs.filter(c => c.role === 'CLUB_ADMIN').map(c => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
-            <i className="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-xs"></i>
           </div>
+        )}
+        
+        <div className="w-full md:flex-1 relative">
+          <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
+          <input 
+            type="text"
+            placeholder="Tìm kiếm lịch sử theo tên hoặc số điện thoại..."
+            className="w-full pl-10 pr-6 py-3 bg-slate-50 border border-slate-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none font-bold text-sm transition-all"
+            value={searchTerm}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+          />
         </div>
-      )}
+      </div>
 
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto custom-scrollbar">
@@ -107,7 +124,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
                 {isSuperAdmin && <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Cơ sở</th>}
                 <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Thời gian giao dịch</th>
                 <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tổng thanh toán</th>
-                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Hành động</th>
+                <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Chi tiết</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -127,13 +144,15 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
                   return (
                     <tr key={s.id} className="hover:bg-blue-50/20 transition-colors group">
                       <td className="px-8 py-4">
-                        <button onClick={() => setSelectedSession(s)} className="flex items-center gap-4 text-left hover:opacity-80 transition-opacity">
-                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs shrink-0 shadow-sm">{player?.name.charAt(0)}</div>
+                        <div className="flex items-center gap-4 text-left">
+                          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs shrink-0 shadow-sm">
+                            {player?.name.charAt(0)}
+                          </div>
                           <div>
                             <span className="font-black text-slate-800 text-sm block tracking-tight">{player?.name}</span>
-                            <span className="text-[10px] text-blue-500 font-black uppercase tracking-widest">Xem chi tiết hóa đơn</span>
+                            <span className="text-[10px] text-slate-400 font-bold">{player?.phone || '...'}</span>
                           </div>
-                        </button>
+                        </div>
                       </td>
                       {isSuperAdmin && (
                         <td className="px-6 py-4">
@@ -144,7 +163,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
                       )}
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold text-slate-600">{new Date(s.checkInTime).toLocaleDateString('vi-VN')}</span>
+                          <span className="text-sm font-bold text-slate-600">{formatDate(s.checkInTime)}</span>
                           <span className="text-[10px] text-slate-400 font-medium">{new Date(s.checkInTime).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span>
                         </div>
                       </td>
@@ -152,21 +171,13 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
                         <span className="font-black text-blue-600 text-base">{s.totalAmount.toLocaleString()}đ</span>
                       </td>
                       <td className="px-8 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => handleShare(s)} 
-                            className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-sm"
-                            title="Chia sẻ kết quả"
-                          >
-                            <i className="fa-solid fa-share-nodes text-xs"></i>
-                          </button>
-                          <button 
-                            className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-800 hover:text-white transition-all flex items-center justify-center shadow-sm"
-                            title="In hóa đơn"
-                          >
-                            <i className="fa-solid fa-print text-xs"></i>
-                          </button>
-                        </div>
+                        <button 
+                          onClick={() => setSelectedSession(s)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-100 rounded-xl text-slate-500 text-xs font-bold shadow-sm hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all"
+                        >
+                          <i className="fa-solid fa-circle-info"></i>
+                          Xem chi tiết
+                        </button>
                       </td>
                     </tr>
                   );

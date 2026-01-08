@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Player, MembershipPayment, Club, Session } from '../types';
-import { validateVNPhone, formatCurrencyInput, parseCurrencyString, removeAccents } from '../utils/formatters';
+import { validateVNPhone, formatCurrencyInput, parseCurrencyString, removeAccents, formatDate } from '../utils/formatters';
 
 interface PlayerManagerProps {
   players: Player[];
@@ -16,7 +16,6 @@ interface PlayerManagerProps {
 
 type MembershipFilterType = 'all' | 'member' | 'guest' | 'expired';
 
-// Danh sách các trình độ từ H- đến A+
 const SKILL_LEVELS = [
   'A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-',
   'E+', 'E', 'E-', 'F+', 'F', 'F-', 'G+', 'G', 'G-', 'H+', 'H', 'H-'
@@ -43,6 +42,8 @@ const PlayerManager: React.FC<PlayerManagerProps> = ({
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)).toISOString().split('T')[0]
   });
+
+  const isSuperAdmin = clubs.length > 0;
 
   const playerLatestMembershipDates = useMemo(() => {
     const map: Record<string, string> = {};
@@ -149,9 +150,15 @@ const PlayerManager: React.FC<PlayerManagerProps> = ({
     if (editingPlayer) {
       onUpdatePlayer({ ...editingPlayer, ...form });
     } else {
-      onAddPlayer({ id: `p-${Date.now()}`, clubId: '', ...form, createdAt: new Date().toISOString() });
+      onAddPlayer({ clubId: '', ...form, createdAt: new Date().toISOString() } as any);
     }
     setShowAdd(false);
+  };
+  
+  const handleBlur = (field: string) => {
+    if (field === 'phone' && form.phone && !validateVNPhone(form.phone)) {
+       setErrors(prev => ({...prev, phone: 'Số điện thoại không đúng định dạng'}));
+    }
   };
 
   const handleMembershipSubmit = () => {
@@ -159,7 +166,7 @@ const PlayerManager: React.FC<PlayerManagerProps> = ({
     const rawAmount = parseCurrencyString(mForm.amount);
     if (rawAmount <= 0) return alert("Số tiền phải lớn hơn 0");
     onAddMembershipPayment({
-      id: `mp-${Date.now()}`,
+      id: '',
       clubId: '', 
       playerId: showMembershipModal.id,
       amount: rawAmount,
@@ -170,256 +177,230 @@ const PlayerManager: React.FC<PlayerManagerProps> = ({
     setShowMembershipModal(null);
   };
 
-  const filterTabs: { id: MembershipFilterType; label: string; icon: string }[] = [
-    { id: 'all', label: 'Tất cả', icon: 'fa-users' },
-    { id: 'member', label: 'Hội viên', icon: 'fa-id-card' },
-    { id: 'guest', label: 'Khách vãng lai', icon: 'fa-walking' },
-    { id: 'expired', label: 'Đã hết hạn', icon: 'fa-calendar-xmark' },
-  ];
-
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-        <div className="flex flex-col md:flex-row gap-4 items-center">
-          <div className="relative flex-[2] w-full">
-            <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-            <input 
-              type="text"
-              placeholder="Tìm kiếm người chơi (có dấu hoặc không dấu)..."
-              className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-            />
-          </div>
-          
-          {readOnly && clubs.length > 0 && (
-            <div className="relative flex-1 w-full">
-              <select
-                value={selectedClubId}
-                onChange={(e) => { setSelectedClubId(e.target.value); setCurrentPage(1); }}
-                className="w-full pl-4 pr-10 py-3 bg-indigo-50/50 border border-indigo-100 rounded-xl text-indigo-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none cursor-pointer"
-              >
-                <option value="all">Tất cả Cơ sở</option>
-                {clubs.filter(c => c.role === 'CLUB_ADMIN').map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <i className="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none"></i>
-            </div>
-          )}
-
-          {!readOnly && (
-            <button 
-              onClick={handleOpenAdd}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 w-full md:w-auto transition-all shadow-lg shadow-blue-600/20 active:scale-95 whitespace-nowrap"
-            >
-              <i className="fa-solid fa-user-plus"></i>
-              Thêm thành viên
-            </button>
-          )}
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-xl font-black text-slate-800">Quản lý người chơi</h3>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Danh sách hội viên và khách vãng lai</p>
         </div>
+        {!readOnly && (
+          <button 
+            onClick={handleOpenAdd}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all active:scale-95"
+          >
+            <i className="fa-solid fa-plus-circle"></i> THÊM NGƯỜI CHƠI
+          </button>
+        )}
+      </div>
 
-        <div className="flex flex-wrap items-center gap-2 pt-2">
-          {filterTabs.map(tab => (
+      <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center">
+        {isSuperAdmin && (
+          <div className="w-full md:w-1/3 relative">
+             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
+                <i className="fa-solid fa-filter"></i>
+             </div>
+             <select
+              value={selectedClubId}
+              onChange={(e) => { setSelectedClubId(e.target.value); setCurrentPage(1); }}
+              className="w-full pl-10 pr-4 py-3.5 bg-slate-50 border-none rounded-2xl font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer text-sm text-slate-600"
+            >
+              <option value="all">Tất cả Cơ sở</option>
+              {clubs.filter(c => c.role === 'CLUB_ADMIN').map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="relative flex-1 w-full">
+          <i className="fa-solid fa-magnifying-glass absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"></i>
+          <input 
+            type="text"
+            placeholder="Tìm theo tên hoặc số điện thoại..."
+            className="w-full pl-12 pr-6 py-3.5 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-sm transition-all"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex bg-slate-50 rounded-2xl p-1 gap-1 w-full md:w-auto overflow-x-auto scrollbar-hide">
+          {(['all', 'member', 'guest', 'expired'] as const).map(type => (
             <button
-              key={tab.id}
-              onClick={() => { setMembershipFilter(tab.id); setCurrentPage(1); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all border ${
-                membershipFilter === tab.id 
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20' 
-                  : 'bg-white text-slate-500 border-slate-100 hover:bg-slate-50'
+              key={type}
+              onClick={() => setMembershipFilter(type)}
+              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-all ${
+                membershipFilter === type ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'
               }`}
             >
-              <i className={`fa-solid ${tab.icon} ${membershipFilter === tab.id ? 'opacity-100' : 'opacity-40'}`}></i>
-              <span className="uppercase tracking-wider">{tab.label}</span>
+              {type === 'all' ? 'Tất cả' : type === 'member' ? 'Hội viên' : type === 'guest' ? 'Khách' : 'Hết hạn'}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+        <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left">
-            <thead className="bg-gray-50/50 border-b border-gray-100">
-              <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Thành viên</th>
-                {readOnly && <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Cơ sở</th>}
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Trình độ/Level</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Trạng thái</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Tổng lượt</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">SĐT</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Ngày hết hạn</th>
-                {!readOnly && <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">Thao tác</th>}
+            <thead>
+              <tr className="border-b border-slate-50">
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Người chơi</th>
+                {isSuperAdmin && <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Cơ sở đăng ký</th>}
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Trình độ</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Trạng thái</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Lượt ghé</th>
+                <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {paginatedPlayers.length === 0 ? (
-                <tr><td colSpan={readOnly ? 8 : 7} className="py-10 text-center text-gray-400">Không tìm thấy người chơi nào phù hợp với bộ lọc</td></tr>
-              ) : (
-                paginatedPlayers.map(p => {
-                  const status = getMembershipStatus(p);
-                  const club = clubs.find(c => c.id === p.clubId);
-                  const totalVisits = visitCountMap[p.id] || 0;
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                            status.type === 'member' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
-                          }`}>
-                            {p.name.charAt(0)}
-                          </div>
-                          <span className="font-bold text-gray-800">{p.name}</span>
+            <tbody className="divide-y divide-slate-50">
+              {paginatedPlayers.map(p => {
+                const status = getMembershipStatus(p);
+                const clubName = isSuperAdmin ? (clubs.find(c => c.id === p.clubId)?.name || 'N/A') : null;
+                
+                return (
+                  <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
+                    <td className="px-8 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 flex items-center justify-center font-black shadow-sm shrink-0">
+                          {p.name.charAt(0)}
                         </div>
-                      </td>
-                      {readOnly && (
-                        <td className="px-6 py-4">
-                          <span className="text-[10px] font-black text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 uppercase">
-                            {club?.name || 'N/A'}
-                          </span>
-                        </td>
-                      )}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                           <span className={`px-2 py-0.5 rounded border text-[10px] font-black ${getSkillBadgeClass(p.skillLevel)}`}>
-                             {p.skillLevel || 'N/A'}
-                           </span>
-                           <span className="text-[10px] font-bold text-slate-400">
-                             {p.points || 0} pts
-                           </span>
+                        <div>
+                          <p className="font-black text-slate-800 text-sm tracking-tight">{p.name}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">{p.phone || 'Chưa có SĐT'}</p>
                         </div>
-                      </td>
+                      </div>
+                    </td>
+                    {isSuperAdmin && (
                       <td className="px-6 py-4">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${status.class}`}>
+                        <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 uppercase tracking-tighter truncate max-w-[150px] block">
+                          {clubName}
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-6 py-4">
+                       <span className={`inline-block px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-tighter ${getSkillBadgeClass(p.skillLevel)}`}>
+                         {p.skillLevel || 'N/A'}
+                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter w-fit ${status.class}`}>
                           {status.label}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-50 text-slate-600 font-black text-xs border border-slate-100">
-                          {totalVisits}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-600 text-sm">{p.phone || '-'}</td>
-                      <td className="px-6 py-4 text-gray-500 text-sm">
-                        {status.date ? new Date(status.date).toLocaleDateString('vi-VN') : '-'}
-                      </td>
-                      {!readOnly && (
-                        <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => handleOpenEdit(p)} className="p-2 text-gray-400 hover:text-blue-600"><i className="fa-solid fa-pen-to-square"></i></button>
-                            {status.type !== 'member' && <button onClick={() => setShowMembershipModal(p)} className="text-xs bg-amber-50 text-amber-600 px-3 py-1.5 rounded-lg font-bold hover:bg-amber-100 transition-colors">Gia hạn</button>}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })
-              )}
+                        {status.date && (
+                          <span className="text-[9px] text-slate-400 mt-1 font-bold italic">Hết hạn: {formatDate(status.date)}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                       <span className="font-black text-slate-400 text-sm">{(visitCountMap[p.id] || 0).toLocaleString()}</span>
+                    </td>
+                    <td className="px-8 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => setShowMembershipModal(p)} className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center shadow-sm" title="Gia hạn hội viên">
+                          <i className="fa-solid fa-calendar-check text-xs"></i>
+                        </button>
+                        <button onClick={() => handleOpenEdit(p)} className="w-9 h-9 rounded-xl bg-slate-50 text-slate-400 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center shadow-sm" title="Sửa thông tin">
+                          <i className="fa-solid fa-pen-to-square text-xs"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-
+        
         {totalPages > 1 && (
-          <div className="p-6 bg-slate-50/50 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">
-              Hiển thị {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, filteredAndSorted.length)} của {filteredAndSorted.length} người chơi
-            </p>
-            <div className="flex items-center gap-2">
-              <button 
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-slate-600 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all"
-              >
-                <i className="fa-solid fa-chevron-left"></i>
-              </button>
-              {[...Array(totalPages)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${currentPage === i + 1 ? 'bg-blue-600 text-white shadow-lg' : 'bg-white border border-gray-200 text-slate-600 hover:bg-slate-50'}`}
-                >
-                  {i + 1}
-                </button>
-              )).slice(Math.max(0, currentPage - 3), Math.min(totalPages, currentPage + 2))}
-              <button 
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                className="w-10 h-10 rounded-xl bg-white border border-gray-200 text-slate-600 flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-all"
-              >
-                <i className="fa-solid fa-chevron-right"></i>
-              </button>
-            </div>
+          <div className="p-6 border-t border-slate-50 flex items-center justify-between">
+             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Trang {currentPage} / {totalPages}</p>
+             <div className="flex gap-1">
+               <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 disabled:opacity-30"><i className="fa-solid fa-chevron-left"></i></button>
+               <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 disabled:opacity-30"><i className="fa-solid fa-chevron-right"></i></button>
+             </div>
           </div>
         )}
       </div>
 
-      {showMembershipModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <div>
-                <h3 className="text-xl font-bold text-gray-800">Gia hạn hội viên</h3>
-                <p className="text-xs text-gray-400">{showMembershipModal.name}</p>
-              </div>
-              <button onClick={() => setShowMembershipModal(null)} className="text-gray-400 hover:text-gray-600"><i className="fa-solid fa-xmark text-xl"></i></button>
+      {showAdd && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
+            <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+               <h3 className="text-xl font-black text-slate-800">{editingPlayer ? 'Cập nhật thông tin' : 'Thêm người chơi mới'}</h3>
+               <button onClick={() => setShowAdd(false)} className="text-slate-400 hover:text-slate-800 transition-colors"><i className="fa-solid fa-xmark text-xl"></i></button>
             </div>
-            <div className="p-6 space-y-4">
-              <div><label className="block text-sm font-semibold text-gray-600 mb-1">Số tiền đóng</label><input type="text" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none font-bold text-amber-600" value={mForm.amount} onChange={e => setMForm({...mForm, amount: formatCurrencyInput(e.target.value)})} /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-sm font-semibold text-gray-600 mb-1">Từ ngày</label><input type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl" value={mForm.startDate} onChange={e => setMForm({...mForm, startDate: e.target.value})} /></div>
-                <div><label className="block text-sm font-semibold text-gray-600 mb-1">Đến ngày</label><input type="date" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl" value={mForm.endDate} onChange={e => setMForm({...mForm, endDate: e.target.value})} /></div>
-              </div>
+            <div className="p-8 space-y-5">
+               <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Họ tên *</label>
+                  <input type="text" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                  {errors.name && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1">{errors.name}</p>}
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Số điện thoại</label>
+                    <input 
+                      type="text" 
+                      className={`w-full px-5 py-4 bg-slate-50 border ${errors.phone ? 'border-red-500' : 'border-slate-100'} rounded-2xl font-bold`} 
+                      value={form.phone} 
+                      onBlur={() => handleBlur('phone')}
+                      onChange={e => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 11);
+                        setForm({...form, phone: val});
+                        if (errors.phone) setErrors({...errors, phone: ''});
+                      }} 
+                    />
+                    {errors.phone && <p className="text-[10px] text-red-500 font-bold mt-1 ml-1">{errors.phone}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Trình độ</label>
+                    <select className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold" value={form.skillLevel} onChange={e => setForm({...form, skillLevel: e.target.value})}>
+                       {SKILL_LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
+                    </select>
+                  </div>
+               </div>
+               <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Ghi chú</label>
+                  <textarea className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-medium" rows={2} value={form.note} onChange={e => setForm({...form, note: e.target.value})} />
+               </div>
             </div>
-            <div className="p-6 bg-gray-50 flex gap-3">
-              <button onClick={() => setShowMembershipModal(null)} className="flex-1 py-3 font-bold text-gray-500">Hủy</button>
-              <button onClick={handleMembershipSubmit} className="flex-1 py-3 bg-amber-500 text-white font-bold rounded-xl active:scale-95 transition-all">Thanh toán</button>
+            <div className="p-8 bg-slate-50 flex gap-3">
+               <button onClick={() => setShowAdd(false)} className="flex-1 font-black text-slate-400 text-sm">HỦY BỎ</button>
+               <button onClick={handleSubmit} className="flex-[2] py-4 bg-blue-600 text-white font-black rounded-2xl shadow-xl shadow-blue-600/20 active:scale-95 transition-all">LƯU THÔNG TIN</button>
             </div>
           </div>
         </div>
       )}
 
-      {showAdd && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleSubmit} className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-gray-800">{editingPlayer ? 'Cập nhật thành viên' : 'Thành viên mới'}</h3>
-              <button type="button" onClick={() => setShowAdd(false)} className="text-gray-400 hover:text-gray-600"><i className="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
-              <div><label className="block text-sm font-semibold text-gray-600 mb-1">Tên người chơi *</label><input autoFocus type="text" className={`w-full px-4 py-3 bg-gray-50 border ${errors.name ? 'border-red-500' : 'border-gray-200'} rounded-xl outline-none`} value={form.name} onChange={e => { setForm({...form, name: e.target.value}); setErrors({...errors, name: ''}); }} /></div>
-              
-              <div className="grid grid-cols-2 gap-4">
+      {showMembershipModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in duration-300">
+             <div className="p-8 border-b border-slate-50 flex justify-between items-center bg-emerald-50/50">
+                <h3 className="text-xl font-black text-emerald-800">Gia hạn Hội viên</h3>
+                <button onClick={() => setShowMembershipModal(null)} className="text-emerald-400 hover:text-emerald-800"><i className="fa-solid fa-xmark text-xl"></i></button>
+             </div>
+             <div className="p-8 space-y-5">
+                <p className="text-sm font-bold text-slate-600 text-center mb-4">Gia hạn cho người chơi: <span className="text-emerald-600">{showMembershipModal.name}</span></p>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Trình độ</label>
-                  <select 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none"
-                    value={form.skillLevel}
-                    onChange={e => setForm({...form, skillLevel: e.target.value})}
-                  >
-                    {SKILL_LEVELS.map(level => (
-                      <option key={level} value={level}>{level}</option>
-                    ))}
-                  </select>
+                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Số tiền thanh toán</label>
+                   <input type="text" className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-black text-emerald-600 text-right" value={mForm.amount} onChange={e => setMForm({...mForm, amount: formatCurrencyInput(e.target.value)})} />
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-600 mb-1">Điểm Level</label>
-                  <input 
-                    type="number" 
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none" 
-                    value={form.points} 
-                    onChange={e => setForm({...form, points: parseInt(e.target.value) || 0})} 
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                   <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Ngày bắt đầu</label>
+                      <input type="date" className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs" value={mForm.startDate} onChange={e => setMForm({...mForm, startDate: e.target.value})} />
+                   </div>
+                   <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Ngày kết thúc</label>
+                      <input type="date" className="w-full px-5 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs" value={mForm.endDate} onChange={e => setMForm({...mForm, endDate: e.target.value})} />
+                   </div>
                 </div>
-              </div>
-
-              <div><label className="block text-sm font-semibold text-gray-600 mb-1">Số điện thoại</label><input type="text" placeholder="09xxx..." className={`w-full px-4 py-3 bg-gray-50 border ${errors.phone ? 'border-red-500' : 'border-gray-200'} rounded-xl outline-none`} value={form.phone} onChange={e => { setForm({...form, phone: e.target.value.replace(/\D/g, "").slice(0, 10)}); setErrors({...errors, phone: ''}); }} /></div>
-              <div><label className="block text-sm font-semibold text-gray-600 mb-1">Ghi chú</label><textarea rows={3} className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none resize-none" value={form.note} onChange={e => setForm({...form, note: e.target.value})} /></div>
-            </div>
-            <div className="p-6 bg-gray-50 flex gap-3">
-              <button type="button" onClick={() => setShowAdd(false)} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-500">Hủy</button>
-              <button type="submit" className="flex-[2] py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all active:scale-95">{editingPlayer ? 'Lưu thay đổi' : 'Tạo thành viên'}</button>
-            </div>
-          </form>
+             </div>
+             <div className="p-8 bg-slate-50 flex gap-3">
+                <button onClick={() => setShowMembershipModal(null)} className="flex-1 font-black text-slate-400 text-sm">BỎ QUA</button>
+                <button onClick={handleMembershipSubmit} className="flex-[2] py-4 bg-emerald-600 text-white font-black rounded-2xl shadow-xl shadow-emerald-600/20 active:scale-95 transition-all">XÁC NHẬN GIA HẠN</button>
+             </div>
+          </div>
         </div>
       )}
     </div>

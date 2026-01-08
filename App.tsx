@@ -1,64 +1,46 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { API } from './api/client';
 import { 
-  Club, Player, Service, Session, SessionStatus, 
-  Expense, ViewType, SessionService, MembershipPayment, ServiceStatus
+  Club, Player, Service, Session, SessionService, 
+  ViewType, SessionStatus 
 } from './types';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import PlayerManager from './components/PlayerManager';
 import ServiceManager from './components/ServiceManager';
 import ExpenseManager from './components/ExpenseManager';
-import Reports from './components/Reports';
 import HistoryView from './components/HistoryView';
+import Reports from './components/Reports';
 import Login from './components/Login';
 import ClubManager from './components/SuperAdmin/ClubManager';
+import SaaSReports from './components/SuperAdmin/SaaSReports';
 import GlobalReports from './components/SuperAdmin/GlobalReports';
 import LoadingOverlay from './components/LoadingOverlay';
-import { API } from './api/client';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Club | null>(null);
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessage, setLoadingMessage] = useState('Đang tải...');
-  
-  const [clubs, setClubs] = useState<Club[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [sessionServices, setSessionServices] = useState<SessionService[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [membershipPayments, setMembershipPayments] = useState<MembershipPayment[]>([]);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [membershipPayments, setMembershipPayments] = useState<any[]>([]);
+  const [subscriptionPayments, setSubscriptionPayments] = useState<any[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // RBAC logic - Bảo vệ các View dựa trên role
-  useEffect(() => {
-    if (currentUser) {
-      const isSuper = currentUser.role === 'SUPER_ADMIN';
-      const superOnlyViews: ViewType[] = ['admin-clubs', 'admin-reports'];
-      const clubOnlyViews: ViewType[] = ['dashboard', 'services', 'expenses', 'reports'];
-
-      if (!isSuper && superOnlyViews.includes(currentView)) {
-        setCurrentView('dashboard');
-      } 
-      else if (isSuper && clubOnlyViews.includes(currentView)) {
-        setCurrentView('admin-clubs');
-      }
-    }
-  }, [currentUser, currentView]);
-
-  const withLoading = async (action: () => Promise<any>, message: string = 'Đang xử lý...') => {
+  const withLoading = async (fn: () => Promise<void>, message = 'Đang xử lý...') => {
     setLoadingMessage(message);
     setIsLoading(true);
     try {
-      const res = await action();
-      return res;
+      await fn();
     } catch (error: any) {
-      console.error("[App Error]", error);
-      const errorMessage = error instanceof Error ? error.message : "Đã xảy ra lỗi hệ thống.";
-      alert(errorMessage);
-      throw error;
+      alert(error.message || 'Có lỗi xảy ra');
     } finally {
       setIsLoading(false);
     }
@@ -66,180 +48,200 @@ const App: React.FC = () => {
 
   const fetchData = useCallback(async () => {
     if (!currentUser) return;
-    
-    const isSuper = currentUser.role === 'SUPER_ADMIN';
-    const clubIdParam = isSuper ? undefined : currentUser.id;
-    
     try {
-      const [allClubs, allPlayers, allServices, allSessions, allExpenses, allMembership] = await Promise.all([
-        isSuper ? API.clubs.list() : Promise.resolve([]),
-        API.players.list(clubIdParam),
-        API.services.list(clubIdParam),
-        API.sessions.list(clubIdParam),
-        API.expenses.list(clubIdParam),
-        API.membership.list(clubIdParam)
+      const isSuper = currentUser.role === 'SUPER_ADMIN';
+      const clubId = isSuper ? undefined : currentUser.id;
+
+      const [p, s, sess, ex, mem] = await Promise.all([
+        API.players.list(clubId),
+        API.services.list(clubId),
+        API.sessions.list(clubId),
+        API.expenses.list(clubId),
+        API.membership.list(clubId)
       ]);
 
-      setClubs(allClubs);
-      setPlayers(allPlayers);
-      setServices(allServices);
-      setSessions(allSessions);
-      setExpenses(allExpenses);
-      setMembershipPayments(allMembership);
+      setPlayers(p);
+      setServices(s);
       
-      const flattenedSS = allSessions.flatMap((s: any) => s.sessionServices || []);
-      setSessionServices(flattenedSS);
-    } catch (e: any) {
-      console.error("Fetch data error:", e);
+      // API returns camelCase data via mapToCamel
+      // session_services (db) -> sessionServices (camel)
+      const flatSessions: Session[] = sess.map(s => {
+        const { sessionServices, ...rest } = s; 
+        return rest;
+      });
+      const allSS: SessionService[] = sess.flatMap(s => s.sessionServices || []);
+      
+      setSessions(flatSessions);
+      setSessionServices(allSS);
+      setExpenses(ex);
+      setMembershipPayments(mem);
+
+      if (isSuper) {
+        const [c, sub] = await Promise.all([
+          API.clubs.list(),
+          API.subscriptions.list()
+        ]);
+        setClubs(c);
+        setSubscriptionPayments(sub);
+      }
+    } catch (error) {
+      console.error("Fetch Data Error:", error);
     }
-  }, [currentUser]);
+  }, [currentUser?.id]);
 
   useEffect(() => {
-    if (currentUser) {
-      fetchData();
-    }
-  }, [currentUser, fetchData]);
+    fetchData();
+  }, [fetchData]);
 
-  const handleLogin = (club: Club) => {
-    setCurrentUser(club);
-    if (club.role === 'SUPER_ADMIN') {
-      setCurrentView('admin-clubs');
-    } else {
-      setCurrentView('dashboard');
-    }
-  };
-  
   const handleLogout = () => {
-    setCurrentUser(null);
+    // Clear all session data state
+    setPlayers([]);
+    setServices([]);
+    setSessions([]);
+    setSessionServices([]);
+    setExpenses([]);
+    setMembershipPayments([]);
+    setSubscriptionPayments([]);
+    setClubs([]);
+    
+    // Reset UI state
     setCurrentView('dashboard');
     setIsSidebarOpen(false);
+    
+    // Remove user
+    setCurrentUser(null);
   };
 
   if (!currentUser) {
-    return <Login onLogin={handleLogin} />;
+    return <Login onLogin={(user) => setCurrentUser(user)} />;
   }
 
-  const isSuper = currentUser.role === 'SUPER_ADMIN';
-
   return (
-    <div className="flex min-h-screen bg-gray-50 overflow-hidden relative font-sans">
-      {/* Overlay cho mobile khi sidebar mở */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-[45] lg:hidden animate-in fade-in duration-300"
-          onClick={() => setIsSidebarOpen(false)}
-        ></div>
-      )}
-
+    <div className="flex min-h-screen bg-slate-50">
+      {isLoading && <LoadingOverlay message={loadingMessage} />}
+      
       <Sidebar 
-        currentView={currentView} 
-        setView={(view) => { setCurrentView(view); setIsSidebarOpen(false); }} 
+        currentView={currentView}
+        setView={setCurrentView}
         clubName={currentUser.name}
         onLogout={handleLogout}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         role={currentUser.role}
+        subscriptionTier={currentUser.subscriptionTier}
+        subscriptionEndDate={currentUser.subscriptionEndDate}
       />
-      
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile Top Header */}
-        <header className="lg:hidden h-16 bg-white border-b border-gray-100 flex items-center justify-between px-4 shrink-0 z-40">
-          <div className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isSuper ? 'bg-indigo-600' : 'bg-blue-600'}`}>
-              <i className="fa-solid fa-table-tennis-paddle-ball text-white text-sm"></i>
+
+      <main className="flex-1 p-4 lg:p-8 overflow-y-auto h-screen">
+        <header className="flex items-center justify-between mb-8 lg:hidden">
+            <button onClick={() => setIsSidebarOpen(true)} className="w-10 h-10 bg-white shadow-sm border border-slate-100 rounded-xl flex items-center justify-center text-slate-600">
+                <i className="fa-solid fa-bars"></i>
+            </button>
+            <div className="flex items-center gap-2">
+                <i className="fa-solid fa-table-tennis-paddle-ball text-blue-600 text-xl"></i>
+                <span className="font-black text-lg">PingPong Pro</span>
             </div>
-            <span className="font-black text-slate-800 tracking-tight text-sm truncate max-w-[150px]">
-              {isSuper ? 'Hệ thống Admin' : currentUser.name}
-            </span>
-          </div>
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="w-10 h-10 rounded-xl bg-gray-50 text-slate-600 flex items-center justify-center hover:bg-gray-100 transition-all active:scale-95"
-          >
-            <i className="fa-solid fa-bars-staggered text-lg"></i>
-          </button>
+            <div className="w-10"></div>
         </header>
 
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto w-full custom-scrollbar">
-          {isLoading && <LoadingOverlay message={loadingMessage} />}
+        {currentView === 'dashboard' && (
+          <Dashboard 
+            role={currentUser.role}
+            players={players} 
+            services={services} 
+            sessions={sessions} 
+            sessionServices={sessionServices}
+            onAddPlayer={(p) => withLoading(async () => { 
+              const newPlayer = await API.players.create({...p, clubId: currentUser.id}); 
+              await API.sessions.checkIn(currentUser.id, newPlayer.id);
+              fetchData(); 
+            }, 'Đang thêm và Check-in...')}
+            onAddSession={(s) => withLoading(async () => { await API.sessions.checkIn(currentUser.id, s.playerId!); fetchData(); }, 'Check-in...')}
+            onUpdateSession={(s, total) => withLoading(async () => { await API.sessions.checkOut(s.id, total); fetchData(); }, 'Thanh toán...')}
+            onAddSessionService={(ss) => withLoading(async () => { await API.sessions.addService(ss.sessionId!, ss); fetchData(); }, 'Thêm dịch vụ...')} 
+            onUpdateSessionService={(ss) => withLoading(async () => { await API.sessions.updateService(ss.id, ss.quantity, ss.totalAmount); fetchData(); }, 'Cập nhật số lượng...')}
+            onRemoveSessionService={(id) => withLoading(async () => { await API.sessions.removeService(id); fetchData(); }, 'Xóa dịch vụ...')}
+          />
+        )}
 
-          <div className="w-full max-w-7xl mx-auto">
-            {isSuper ? (
-              <div className="space-y-6">
-                {currentView === 'admin-clubs' && (
-                  <ClubManager 
-                    clubs={clubs} 
-                    onAddClub={(data) => withLoading(async () => { await API.clubs.create({...data, role: 'CLUB_ADMIN'}); fetchData(); }, 'Đang tạo cơ sở...')} 
-                    onUpdateClub={(id, data) => withLoading(async () => { await API.clubs.update(id, data); fetchData(); }, 'Đang cập nhật...')} 
-                    onDeleteClub={(id) => withLoading(async () => { await API.clubs.update(id, { status: 'inactive' }); fetchData(); }, 'Đang tạm khóa cơ sở...')} 
-                  />
-                )}
-                {currentView === 'admin-reports' && <GlobalReports clubs={clubs} sessions={sessions} expenses={expenses} membershipPayments={membershipPayments} services={services} sessionServices={sessionServices} />}
-                {currentView === 'players' && <PlayerManager players={players} membershipPayments={membershipPayments} sessions={sessions} onAddPlayer={async () => {}} onUpdatePlayer={async () => {}} onAddMembershipPayment={() => {}} readOnly clubs={clubs} />}
-                {currentView === 'history' && <HistoryView sessions={sessions.filter(s => s.status === SessionStatus.FINISHED)} players={players} services={services} sessionServices={sessionServices} clubs={clubs} />}
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {currentView === 'dashboard' && (
-                  <Dashboard 
-                    players={players} 
-                    services={services} 
-                    sessions={sessions} 
-                    sessionServices={sessionServices}
-                    onAddPlayer={(p) => withLoading(async () => { await API.players.create({...p, clubId: currentUser.id}); fetchData(); }, 'Đang thêm...')}
-                    onAddSession={(s) => withLoading(async () => { await API.sessions.checkIn(currentUser.id, s.playerId); fetchData(); }, 'Check-in...')}
-                    onUpdateSession={(s, total) => withLoading(async () => { await API.sessions.checkOut(s.id, total); fetchData(); }, 'Thanh toán...')}
-                    onAddSessionService={(ss) => withLoading(async () => { await API.sessions.addService(ss.sessionId, ss); fetchData(); }, 'Thêm dịch vụ...')} 
-                    onUpdateSessionService={(ss) => withLoading(async () => { await API.sessions.updateService(ss.id, ss.quantity, ss.totalAmount); fetchData(); }, 'Cập nhật số lượng...')}
-                    onRemoveSessionService={(id) => withLoading(async () => { await API.sessions.removeService(id); fetchData(); }, 'Xóa dịch vụ...')}
-                  />
-                )}
+        {currentView === 'players' && (
+          <PlayerManager 
+            players={players}
+            membershipPayments={membershipPayments}
+            sessions={sessions}
+            onAddPlayer={(p) => withLoading(async () => { await API.players.create({...p, clubId: currentUser.id}); fetchData(); }, 'Thêm người chơi...')}
+            onUpdatePlayer={(p) => withLoading(async () => { await API.players.update(p.id, p); fetchData(); }, 'Cập nhật...')}
+            onAddMembershipPayment={(m) => withLoading(async () => { await API.membership.create({...m, clubId: currentUser.id}); fetchData(); }, 'Gia hạn...')}
+            clubs={clubs}
+          />
+        )}
 
-                {currentView === 'players' && (
-                  <PlayerManager 
-                    players={players} 
-                    membershipPayments={membershipPayments}
-                    sessions={sessions}
-                    onAddPlayer={(p) => withLoading(async () => { await API.players.create({...p, clubId: currentUser.id}); fetchData(); }, 'Thêm người chơi...')} 
-                    onUpdatePlayer={(p) => withLoading(async () => { await API.players.update(p.id, p); fetchData(); }, 'Đang lưu...')} 
-                    onAddMembershipPayment={(mp) => withLoading(async () => { 
-                      await API.membership.create({...mp, clubId: currentUser.id}); 
-                      fetchData(); 
-                    }, 'Gia hạn hội viên...')} 
-                  />
-                )}
+        {currentView === 'services' && (
+          <ServiceManager 
+            clubId={currentUser.id}
+            services={services}
+            onAddService={(s) => withLoading(async () => { await API.services.create({...s, clubId: currentUser.id}); fetchData(); }, 'Thêm dịch vụ mới...')}
+            onUpdateService={(s) => withLoading(async () => { await API.services.update(s.id, s); fetchData(); }, 'Cập nhật dịch vụ...')}
+          />
+        )}
 
-                {currentView === 'services' && (
-                  <ServiceManager 
-                    clubId={currentUser.id} 
-                    services={services} 
-                    onUpdateServices={(updated) => withLoading(async () => { 
-                      for(const s of updated) {
-                        if(!services.find(os => os.id === s.id)) await API.services.create({...s, clubId: currentUser.id});
-                        else await API.services.update(s.id, s);
-                      }
-                      fetchData();
-                    }, 'Đang đồng bộ...')} 
-                  />
-                )}
+        {currentView === 'expenses' && (
+          <ExpenseManager 
+            clubId={currentUser.id}
+            expenses={expenses}
+            onAddExpense={(e) => withLoading(async () => { await API.expenses.create({...e, clubId: currentUser.id}); fetchData(); })}
+            onUpdateExpense={(e) => withLoading(async () => { await API.expenses.update(e.id, e); fetchData(); })}
+            onRemoveExpense={(id) => withLoading(async () => { await API.expenses.remove(id); fetchData(); })}
+          />
+        )}
 
-                {currentView === 'expenses' && (
-                  <ExpenseManager 
-                    clubId={currentUser.id} 
-                    expenses={expenses} 
-                    onAddExpense={(e) => withLoading(async () => { await API.expenses.create({...e, clubId: currentUser.id}); fetchData(); }, 'Ghi chi tiêu...')} 
-                    onUpdateExpense={(e) => withLoading(async () => { await API.expenses.update(e.id, e); fetchData(); }, 'Cập nhật chi tiêu...')}
-                    onRemoveExpense={(id) => withLoading(async () => { await API.expenses.remove(id); fetchData(); }, 'Xóa chi tiêu...')} 
-                  />
-                )}
+        {currentView === 'history' && (
+          <HistoryView 
+            sessions={sessions.filter(s => s.status === 'finished')}
+            players={players}
+            sessionServices={sessionServices}
+            services={services}
+            clubs={clubs}
+          />
+        )}
 
-                {currentView === 'reports' && <Reports sessions={sessions} expenses={expenses} membershipPayments={membershipPayments} services={services} sessionServices={sessionServices} />}
-                {currentView === 'history' && <HistoryView sessions={sessions.filter(s => s.status === SessionStatus.FINISHED)} players={players} services={services} sessionServices={sessionServices} />}
-              </div>
-            )}
-          </div>
-        </main>
-      </div>
+        {currentView === 'reports' && (
+          <Reports 
+            sessions={sessions.filter(s => s.status === 'finished')}
+            expenses={expenses}
+            membershipPayments={membershipPayments}
+            services={services}
+            sessionServices={sessionServices}
+          />
+        )}
+
+        {currentView === 'admin-clubs' && (
+          <ClubManager 
+            clubs={clubs}
+            subscriptionPayments={subscriptionPayments}
+            onAddClub={(c) => withLoading(async () => { await API.clubs.create(c); fetchData(); })}
+            onUpdateClub={(id, c) => withLoading(async () => { await API.clubs.update(id, c); fetchData(); })}
+            onDeleteClub={(id) => withLoading(async () => { await API.clubs.remove(id); fetchData(); })}
+            onAddSubscriptionPayment={(p) => withLoading(async () => { await API.subscriptions.create(p); fetchData(); })}
+          />
+        )}
+
+        {currentView === 'admin-saas' && (
+          <SaaSReports clubs={clubs} subscriptionPayments={subscriptionPayments} />
+        )}
+
+        {currentView === 'admin-reports' && (
+          <GlobalReports 
+            clubs={clubs}
+            sessions={sessions}
+            expenses={expenses}
+            membershipPayments={membershipPayments}
+            services={services}
+            sessionServices={sessionServices}
+            subscriptionPayments={subscriptionPayments}
+          />
+        )}
+      </main>
     </div>
   );
 };

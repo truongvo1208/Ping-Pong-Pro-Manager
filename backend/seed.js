@@ -1,3 +1,4 @@
+
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -6,11 +7,11 @@ async function main() {
 
   // Super Admin
   await prisma.club.upsert({
-    where: { username: 'admin_supper' },
+    where: { username: 'sadmin' },
     update: {},
     create: {
       name: 'Hệ thống Quản trị Tối cao',
-      username: 'admin_supper',
+      username: 'sadmin',
       password: 'M@i250563533',
       role: 'superadmin',
       status: 'active'
@@ -19,12 +20,12 @@ async function main() {
 
   // Demo Club
   await prisma.club.upsert({
-    where: { username: 'admin_sg' },
+    where: { username: 'demopro' },
     update: {},
     create: {
-      name: 'CLB Bóng Bàn 3T',
-      username: 'admin_sg',
-      password: 'admin',
+      name: 'CLB Bóng Bàn Demo Pro',
+      username: 'demopro',
+      password: 'demopro@123',
       role: 'club',
       status: 'active'
     },

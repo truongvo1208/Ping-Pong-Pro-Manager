@@ -22,11 +22,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   useEffect(() => {
     const fetchAdminContact = async () => {
       try {
-        // Tìm theo username 'admin_supper' (Tên đăng nhập mặc định của S-Admin)
+        // Tìm theo username 'sadmin' (Tên đăng nhập mặc định của S-Admin)
         let { data, error } = await supabase
           .from('clubs')
           .select('email, hotline')
-          .eq('username', 'SUPER_ADMIN')
+          .eq('username', 'sadmin')
           .maybeSingle();
 
         // Nếu không thấy, thử tìm theo role superadmin chung
@@ -156,27 +156,27 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </button>
 
-            {/* Quick Access Section for Testing */}
+            {/* Quick Access Section for Demo */}
             <div className="pt-4">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-4">
-                — TRUY CẬP NHANH (TESTING) —
+                — TRUY CẬP NHANH (DEMO) —
               </p>
-              <div className="flex gap-3">
+              <div className="flex justify-center gap-3">
                 <button
                   type="button"
-                  onClick={() => quickLogin('sadmin', 'M@i250563533')}
-                  className="flex-1 py-3 px-2 bg-indigo-50 text-indigo-700 rounded-xl text-[10px] font-black hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1"
+                  onClick={() => quickLogin('demofree', 'demofree@123')}
+                  className="flex-1 py-4 px-2 bg-slate-50 text-slate-600 rounded-2xl text-[10px] font-black hover:bg-slate-600 hover:text-white transition-all shadow-sm border border-slate-100 flex flex-col items-center gap-1 group/demo"
                 >
-                  <i className="fa-solid fa-user-shield text-base mb-1"></i>
-                  SUPER ADMIN
+                  <i className="fa-solid fa-user text-xl mb-1 group-hover/demo:scale-110 transition-transform"></i>
+                  ACCOUNT DEMO FREE
                 </button>
                 <button
                   type="button"
-                  onClick={() => quickLogin('admin3tq8', 'admin@123')}
-                  className="flex-1 py-3 px-2 bg-blue-50 text-blue-700 rounded-xl text-[10px] font-black hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-blue-100 flex flex-col items-center gap-1"
+                  onClick={() => quickLogin('demopro', 'demopro@123')}
+                  className="flex-1 py-4 px-2 bg-indigo-50 text-indigo-700 rounded-2xl text-[10px] font-black hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-100 flex flex-col items-center gap-1 group/demo"
                 >
-                  <i className="fa-solid fa-house-laptop text-base mb-1"></i>
-                  CLUB ADMIN
+                  <i className="fa-solid fa-crown text-xl mb-1 group-hover/demo:scale-110 transition-transform"></i>
+                  ACCOUNT DEMO PRO
                 </button>
               </div>
             </div>
