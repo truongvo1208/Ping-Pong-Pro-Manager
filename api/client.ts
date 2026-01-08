@@ -43,7 +43,8 @@ const mapToCamel = (obj: any): any => {
       'membership_end_date': 'membershipEndDate',
       'membership_enddate': 'membershipEndDate',
       'note': 'note',
-      'notes': 'note'
+      'notes': 'note',
+      'skill_level': 'skillLevel'
     };
 
     let camelKey = mapping[key] || key.replace(/([-_][a-z])/g, (group) =>
@@ -86,7 +87,8 @@ const mapToSnake = (obj: any, tableName?: string): any => {
       'checkOutTime': 'check_out_time',
       'membershipStartDate': 'membership_start_date',
       'membershipEndDate': (tableName === 'players') ? 'membership_enddate' : 'membership_end_date',
-      'note': (tableName === 'expenses') ? 'description' : (tableName === 'players' ? 'note' : 'notes')
+      'note': (tableName === 'expenses') ? 'description' : (tableName === 'players' ? 'note' : 'notes'),
+      'skillLevel': 'skill_level'
     };
 
     let dbKey = special[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
@@ -268,6 +270,16 @@ export const API = {
       const { data: result, error } = await supabase.from('session_services').insert([dbData]).select().single();
       if (error) handleApiError(error, "Thêm dịch vụ vào phiên");
       return mapToCamel(result);
+    },
+    updateService: async (id: string, quantity: number, totalAmount: number): Promise<SessionService> => {
+      const { data, error } = await supabase
+        .from('session_services')
+        .update({ quantity, total_amount: totalAmount })
+        .eq('id', id)
+        .select()
+        .single();
+      if (error) handleApiError(error, "Cập nhật số lượng dịch vụ");
+      return mapToCamel(data);
     },
     removeService: async (id: string): Promise<void> => {
       const { error } = await supabase.from('session_services').delete().eq('id', id);

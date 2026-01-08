@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Player, Session } from '../types';
-import { validateVNPhone } from '../utils/formatters';
+import { validateVNPhone, removeAccents } from '../utils/formatters';
 
 interface CheckInModalProps {
   players: Player[];
@@ -19,11 +19,18 @@ const CheckInModal: React.FC<CheckInModalProps> = ({ players, activeSessions, on
 
   const activePlayerIds = new Set(activeSessions.map(s => s.playerId));
   
-  const filteredPlayers = players.filter(p => 
-    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     (p.phone && p.phone.includes(searchTerm))) &&
-    !activePlayerIds.has(p.id)
-  );
+  const filteredPlayers = players.filter(p => {
+    const searchLower = searchTerm.toLowerCase();
+    const searchNoAccent = removeAccents(searchLower);
+    
+    const nameLower = p.name.toLowerCase();
+    const nameNoAccent = removeAccents(nameLower);
+
+    const matchesName = nameLower.includes(searchLower) || nameNoAccent.includes(searchNoAccent);
+    const matchesPhone = p.phone && p.phone.includes(searchTerm);
+
+    return (matchesName || matchesPhone) && !activePlayerIds.has(p.id);
+  });
 
   const handleSaveAndCheckIn = () => {
     const newErrors: Record<string, string> = {};

@@ -30,6 +30,8 @@ export interface Player {
   createdAt: string;
   membershipStartDate?: string;
   membershipEndDate?: string;
+  points?: number;
+  skillLevel?: string;
 }
 
 export interface MembershipPayment {
@@ -64,20 +66,11 @@ export interface Session {
   id: string;
   clubId: string;
   playerId: string;
+  tableNumber?: number;
   checkInTime: string;
   checkOutTime?: string;
   status: SessionStatus;
   totalAmount: number;
-}
-
-export interface Notification {
-  id: string;
-  clubId: string;
-  title: string;
-  content: string;
-  type: 'promotion' | 'reminder' | 'tournament';
-  sentAt: string;
-  targetCount: number;
 }
 
 export interface Expense {
@@ -89,6 +82,17 @@ export interface Expense {
   amount: number;
 }
 
+export interface Notification {
+  id: string;
+  clubId: string;
+  title: string;
+  content: string;
+  type: 'promotion' | 'reminder' | 'tournament' | 'other';
+  sentAt: string;
+  targetCount?: number;
+}
+
+// Fixed missing exports for Booking, Match, and Tournament types required by components
 export interface Booking {
   id: string;
   clubId: string;
@@ -96,7 +100,26 @@ export interface Booking {
   tableId: number;
   startTime: string;
   endTime: string;
-  status: 'confirmed' | 'cancelled' | 'playing';
+  status: 'confirmed' | 'cancelled' | 'pending';
 }
 
-export type ViewType = 'dashboard' | 'players' | 'services' | 'expenses' | 'history' | 'reports' | 'notifications' | 'admin-clubs' | 'admin-reports';
+export interface Match {
+  id: string;
+  player1Id: string;
+  player2Id: string;
+  score1: number;
+  score2: number;
+  winnerId?: string;
+  round: string;
+}
+
+export interface Tournament {
+  id: string;
+  clubId: string;
+  name: string;
+  startDate: string;
+  status: 'ongoing' | 'upcoming' | 'finished';
+  matches: Match[];
+}
+
+export type ViewType = 'dashboard' | 'players' | 'services' | 'expenses' | 'history' | 'reports' | 'admin-clubs' | 'admin-reports';

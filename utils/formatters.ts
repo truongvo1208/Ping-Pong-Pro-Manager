@@ -20,3 +20,14 @@ export const validateVNPhone = (phone: string): boolean => {
   const re = /^(0[3|5|7|8|9])+([0-9]{8})$/;
   return re.test(phone);
 };
+
+/**
+ * Loại bỏ dấu tiếng Việt để phục vụ tìm kiếm
+ */
+export const removeAccents = (str: string): string => {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+};

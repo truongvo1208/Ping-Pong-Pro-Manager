@@ -14,12 +14,13 @@ interface DashboardProps {
   // Updated signature to match (Session, number) as expected by App.tsx handleCheckOut
   onUpdateSession: (s: Session, total: number) => void;
   onAddSessionService: (ss: SessionService) => void;
+  onUpdateSessionService: (ss: SessionService) => void;
   onRemoveSessionService: (id: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   players, services, sessions, sessionServices, 
-  onAddPlayer, onAddSession, onUpdateSession, onAddSessionService, onRemoveSessionService
+  onAddPlayer, onAddSession, onUpdateSession, onAddSessionService, onUpdateSessionService, onRemoveSessionService
 }) => {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -197,6 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               sessionServices={sessionServices.filter(ss => ss.sessionId === selectedSession.id)}
               onUpdateSession={onUpdateSession}
               onAddService={onAddSessionService}
+              onUpdateService={onUpdateSessionService}
               onRemoveService={onRemoveSessionService}
               onCheckOutRequest={(sess, total) => setPendingCheckout({session: sess, total})}
             />

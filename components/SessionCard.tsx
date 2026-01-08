@@ -9,12 +9,13 @@ interface SessionCardProps {
   sessionServices: SessionService[];
   onUpdateSession: (s: Session, total: number) => void;
   onAddService: (ss: SessionService) => void;
+  onUpdateService: (ss: SessionService) => void;
   onRemoveService: (id: string) => void;
   onCheckOutRequest: (session: Session, total: number) => void;
 }
 
 const SessionCard: React.FC<SessionCardProps> = ({ 
-  session, player, services, sessionServices, onUpdateSession, onAddService, onRemoveService, onCheckOutRequest 
+  session, player, services, sessionServices, onUpdateSession, onAddService, onUpdateService, onRemoveService, onCheckOutRequest 
 }) => {
   const [elapsedDisplay, setElapsedDisplay] = useState('0m 0s');
   const [showServices, setShowServices] = useState(false);
@@ -85,6 +86,22 @@ const SessionCard: React.FC<SessionCardProps> = ({
     };
     onAddService(newSS);
     setSelectedServiceToAdd(null);
+  };
+
+  const adjustQuantity = (ss: SessionService, delta: number) => {
+    const newQty = ss.quantity + delta;
+    if (newQty <= 0) {
+      if (window.confirm('Bạn muốn xóa dịch vụ này khỏi lượt chơi?')) {
+        onRemoveService(ss.id);
+      }
+      return;
+    }
+    const updatedSS = {
+      ...ss,
+      quantity: newQty,
+      totalAmount: ss.price * newQty
+    };
+    onUpdateService(updatedSS);
   };
 
   return (
@@ -195,7 +212,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
           </div>
         </div>
 
-        <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
           {sessionServices.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-200 rounded-2xl bg-white/50">
                <i className="fa-solid fa-receipt text-gray-200 text-2xl mb-2"></i>
@@ -206,17 +223,39 @@ const SessionCard: React.FC<SessionCardProps> = ({
               const s = services.find(x => x.id === ss.serviceId);
               return (
                 <div key={ss.id} className="flex justify-between items-center text-sm bg-white p-3 rounded-2xl border border-gray-100 shadow-sm animate-in slide-in-from-right-2 duration-200 group/item">
-                  <div className="flex flex-col">
-                    <span className="text-gray-800 font-bold">{s?.name || 'N/A'}</span>
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className="text-gray-800 font-bold truncate">{s?.name || 'N/A'}</span>
                     <span className="text-[10px] text-gray-400">
-                      {ss.quantity} x {ss.price.toLocaleString()}đ / {s?.unit || 'đv'}
+                       Đơn giá: {ss.price.toLocaleString()}đ
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-black text-gray-900 bg-gray-50 px-2 py-1 rounded-lg">{ss.totalAmount.toLocaleString()}đ</span>
+                    {/* Quantity Controls */}
+                    <div className="flex items-center bg-slate-50 rounded-lg p-1 border border-slate-100">
+                      <button 
+                        onClick={() => adjustQuantity(ss, -1)}
+                        className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-white rounded-md transition-all"
+                      >
+                        <i className="fa-solid fa-minus text-[10px]"></i>
+                      </button>
+                      <span className="w-8 text-center font-black text-slate-700 text-xs">
+                        {ss.quantity}
+                      </span>
+                      <button 
+                        onClick={() => adjustQuantity(ss, 1)}
+                        className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-white rounded-md transition-all"
+                      >
+                        <i className="fa-solid fa-plus text-[10px]"></i>
+                      </button>
+                    </div>
+                    
+                    <div className="w-20 text-right">
+                       <span className="font-black text-gray-900">{ss.totalAmount.toLocaleString()}đ</span>
+                    </div>
+
                     <button 
                       onClick={() => onRemoveService(ss.id)}
-                      className="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center opacity-0 group-hover/item:opacity-100 shadow-sm"
+                      className="w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center opacity-0 group-hover/item:opacity-100 shadow-sm shrink-0"
                       title="Xóa dịch vụ này"
                     >
                       <i className="fa-solid fa-trash-can text-[10px]"></i>

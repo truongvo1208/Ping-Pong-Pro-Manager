@@ -167,50 +167,16 @@ const App: React.FC = () => {
             {isSuper ? (
               <div className="space-y-6">
                 {currentView === 'admin-clubs' && (
-                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <ClubManager 
-                      clubs={clubs} 
-                      onAddClub={(data) => withLoading(async () => { await API.clubs.create({...data, role: 'CLUB_ADMIN'}); fetchData(); }, 'Đang tạo cơ sở...')} 
-                      onUpdateClub={(id, data) => withLoading(async () => { await API.clubs.update(id, data); fetchData(); }, 'Đang cập nhật...')} 
-                      onDeleteClub={(id) => withLoading(async () => { await API.clubs.update(id, { status: 'inactive' }); fetchData(); }, 'Đang tạm khóa cơ sở...')} 
-                    />
-                  </div>
-                )}
-
-                {currentView === 'admin-reports' && (
-                  <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <GlobalReports 
-                      clubs={clubs} 
-                      sessions={sessions} 
-                      expenses={expenses} 
-                      membershipPayments={membershipPayments} 
-                      services={services} 
-                      sessionServices={sessionServices} 
-                    />
-                  </div>
-                )}
-
-                {currentView === 'players' && (
-                  <PlayerManager 
-                    players={players} 
-                    membershipPayments={membershipPayments}
-                    sessions={sessions}
-                    onAddPlayer={async () => {}} 
-                    onUpdatePlayer={async () => {}} 
-                    onAddMembershipPayment={() => {}} 
-                    readOnly 
-                    clubs={clubs}
+                  <ClubManager 
+                    clubs={clubs} 
+                    onAddClub={(data) => withLoading(async () => { await API.clubs.create({...data, role: 'CLUB_ADMIN'}); fetchData(); }, 'Đang tạo cơ sở...')} 
+                    onUpdateClub={(id, data) => withLoading(async () => { await API.clubs.update(id, data); fetchData(); }, 'Đang cập nhật...')} 
+                    onDeleteClub={(id) => withLoading(async () => { await API.clubs.update(id, { status: 'inactive' }); fetchData(); }, 'Đang tạm khóa cơ sở...')} 
                   />
                 )}
-                {currentView === 'history' && (
-                  <HistoryView 
-                    sessions={sessions.filter(s => s.status === SessionStatus.FINISHED)} 
-                    players={players} 
-                    services={services} 
-                    sessionServices={sessionServices} 
-                    clubs={clubs}
-                  />
-                )}
+                {currentView === 'admin-reports' && <GlobalReports clubs={clubs} sessions={sessions} expenses={expenses} membershipPayments={membershipPayments} services={services} sessionServices={sessionServices} />}
+                {currentView === 'players' && <PlayerManager players={players} membershipPayments={membershipPayments} sessions={sessions} onAddPlayer={async () => {}} onUpdatePlayer={async () => {}} onAddMembershipPayment={() => {}} readOnly clubs={clubs} />}
+                {currentView === 'history' && <HistoryView sessions={sessions.filter(s => s.status === SessionStatus.FINISHED)} players={players} services={services} sessionServices={sessionServices} clubs={clubs} />}
               </div>
             ) : (
               <div className="space-y-6">
@@ -224,6 +190,7 @@ const App: React.FC = () => {
                     onAddSession={(s) => withLoading(async () => { await API.sessions.checkIn(currentUser.id, s.playerId); fetchData(); }, 'Check-in...')}
                     onUpdateSession={(s, total) => withLoading(async () => { await API.sessions.checkOut(s.id, total); fetchData(); }, 'Thanh toán...')}
                     onAddSessionService={(ss) => withLoading(async () => { await API.sessions.addService(ss.sessionId, ss); fetchData(); }, 'Thêm dịch vụ...')} 
+                    onUpdateSessionService={(ss) => withLoading(async () => { await API.sessions.updateService(ss.id, ss.quantity, ss.totalAmount); fetchData(); }, 'Cập nhật số lượng...')}
                     onRemoveSessionService={(id) => withLoading(async () => { await API.sessions.removeService(id); fetchData(); }, 'Xóa dịch vụ...')}
                   />
                 )}
@@ -237,7 +204,6 @@ const App: React.FC = () => {
                     onUpdatePlayer={(p) => withLoading(async () => { await API.players.update(p.id, p); fetchData(); }, 'Đang lưu...')} 
                     onAddMembershipPayment={(mp) => withLoading(async () => { 
                       await API.membership.create({...mp, clubId: currentUser.id}); 
-                      setPlayers(prev => prev.map(p => p.id === mp.playerId ? { ...p, membershipEndDate: mp.endDate } : p));
                       fetchData(); 
                     }, 'Gia hạn hội viên...')} 
                   />

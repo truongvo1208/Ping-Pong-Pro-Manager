@@ -16,6 +16,7 @@ interface MenuItem {
   id: ViewType;
   icon: string;
   label: string;
+  badge?: string;
 }
 
 interface MenuGroup {
@@ -103,14 +104,19 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, setView, clubName, onLog
                 <li key={item.id}>
                   <button
                     onClick={() => setView(item.id)}
-                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-200 ${
+                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-200 group/nav ${
                       currentView === item.id 
                         ? (isSuper ? 'bg-indigo-600' : 'bg-blue-600') + ' text-white shadow-lg shadow-black/20' 
                         : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     }`}
                   >
                     <i className={`fa-solid ${item.icon} w-5 text-center text-base`}></i>
-                    <span className="font-bold text-sm">{item.label}</span>
+                    <span className="font-bold text-sm flex-1 text-left">{item.label}</span>
+                    {item.badge && (
+                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${currentView === item.id ? 'bg-white/20 text-white' : 'bg-blue-600 text-white'}`}>
+                        {item.badge}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
