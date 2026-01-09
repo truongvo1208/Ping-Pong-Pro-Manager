@@ -15,6 +15,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedClubId, setSelectedClubId] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
@@ -26,6 +27,18 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
     // Filter by Club
     if (selectedClubId !== 'all') {
       result = result.filter(s => s.clubId === selectedClubId);
+    }
+
+    // Filter by Date
+    if (selectedDate) {
+      result = result.filter(s => {
+        const d = new Date(s.checkInTime);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const localDateStr = `${year}-${month}-${day}`;
+        return localDateStr === selectedDate;
+      });
     }
 
     // Filter by Search Term (Player Name or Phone)
@@ -43,7 +56,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
     }
 
     return result.sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
-  }, [sessions, selectedClubId, searchTerm, players]);
+  }, [sessions, selectedClubId, searchTerm, players, selectedDate]);
 
   const totalPages = Math.ceil(filteredSessions.length / itemsPerPage);
   
@@ -103,6 +116,18 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
           </div>
         )}
         
+        <div className="w-full md:w-auto relative">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
+             <i className="fa-solid fa-calendar-days"></i>
+          </div>
+          <input 
+            type="date"
+            value={selectedDate}
+            onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
+            className="w-full md:w-48 pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm placeholder:text-slate-400 cursor-pointer"
+          />
+        </div>
+
         <div className="w-full md:flex-1 relative">
           <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
           <input 
