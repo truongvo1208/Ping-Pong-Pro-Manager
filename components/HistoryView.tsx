@@ -15,11 +15,27 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [selectedClubId, setSelectedClubId] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedDate, setSelectedDate] = useState('');
+  
+  // Date Range State
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
 
   const isSuperAdmin = clubs.length > 0;
+
+  const hasActiveFilters = useMemo(() => {
+    return (selectedClubId !== 'all') || (searchTerm.trim() !== '') || (fromDate !== '') || (toDate !== '');
+  }, [selectedClubId, searchTerm, fromDate, toDate]);
+
+  const clearAllFilters = () => {
+    setSelectedClubId('all');
+    setSearchTerm('');
+    setFromDate('');
+    setToDate('');
+    setCurrentPage(1);
+  };
 
   const filteredSessions = useMemo(() => {
     let result = sessions;
@@ -29,16 +45,17 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
       result = result.filter(s => s.clubId === selectedClubId);
     }
 
-    // Filter by Date
-    if (selectedDate) {
-      result = result.filter(s => {
-        const d = new Date(s.checkInTime);
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const localDateStr = `${year}-${month}-${day}`;
-        return localDateStr === selectedDate;
-      });
+    // Filter by Date Range
+    if (fromDate) {
+      const start = new Date(fromDate);
+      start.setHours(0, 0, 0, 0);
+      result = result.filter(s => new Date(s.checkInTime) >= start);
+    }
+
+    if (toDate) {
+      const end = new Date(toDate);
+      end.setHours(23, 59, 59, 999);
+      result = result.filter(s => new Date(s.checkInTime) <= end);
     }
 
     // Filter by Search Term (Player Name or Phone)
@@ -56,7 +73,7 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
     }
 
     return result.sort((a, b) => new Date(b.checkInTime).getTime() - new Date(a.checkInTime).getTime());
-  }, [sessions, selectedClubId, searchTerm, players, selectedDate]);
+  }, [sessions, selectedClubId, searchTerm, players, fromDate, toDate]);
 
   const totalPages = Math.ceil(filteredSessions.length / itemsPerPage);
   
@@ -116,17 +133,46 @@ const HistoryView: React.FC<HistoryViewProps> = ({ sessions, players, sessionSer
           </div>
         )}
         
-        <div className="w-full md:w-auto relative">
-          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
-             <i className="fa-solid fa-calendar-days"></i>
+        {/* Date Range Filters */}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
+               <span className="text-[10px] font-black uppercase">Từ</span>
+            </div>
+            <input 
+              type="date"
+              value={fromDate}
+              onChange={(e) => { setFromDate(e.target.value); setCurrentPage(1); }}
+              className="w-full md:w-40 pl-9 pr-2 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs placeholder:text-slate-400 cursor-pointer"
+            />
           </div>
-          <input 
-            type="date"
-            value={selectedDate}
-            onChange={(e) => { setSelectedDate(e.target.value); setCurrentPage(1); }}
-            className="w-full md:w-48 pl-10 pr-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm placeholder:text-slate-400 cursor-pointer"
-          />
+          <div className="relative flex-1 md:flex-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none">
+               <span className="text-[10px] font-black uppercase">Đến</span>
+            </div>
+            <input 
+              type="date"
+              value={toDate}
+              onChange={(e) => { setToDate(e.target.value); setCurrentPage(1); }}
+              className="w-full md:w-40 pl-10 pr-2 py-3 bg-slate-50 border border-slate-100 rounded-xl text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs placeholder:text-slate-400 cursor-pointer"
+            />
+          </div>
         </div>
+        
+        {/* Clear Filters Button */}
+        <button
+          onClick={clearAllFilters}
+          disabled={!hasActiveFilters}
+          className={`h-[42px] px-4 rounded-xl font-bold text-xs border transition-all flex items-center justify-center gap-2 shrink-0 ${
+            hasActiveFilters 
+            ? 'bg-red-50 text-red-500 border-red-100 hover:bg-red-500 hover:text-white hover:shadow-md cursor-pointer' 
+            : 'bg-slate-50 text-slate-300 border-slate-100 cursor-not-allowed opacity-50'
+          }`}
+          title="Xóa tất cả bộ lọc"
+        >
+          <i className="fa-solid fa-filter-circle-xmark text-sm"></i>
+          <span className="hidden lg:inline">Xóa lọc</span>
+        </button>
 
         <div className="w-full md:flex-1 relative">
           <i className="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>

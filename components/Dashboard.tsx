@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { Player, Session, Service, SessionService, SessionStatus } from '../types';
 import SessionCard from './SessionCard';
 import CheckInModal from './CheckInModal';
-import { getSmartInsight } from '../services/geminiService';
+import { removeAccents } from '../utils/formatters';
 
 interface DashboardProps {
   players: Player[];
@@ -26,15 +26,28 @@ const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   
-  // AI Insight State
-  const [aiInsight, setAiInsight] = useState<{insight: string; advice: string} | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-
   const isSuperAdmin = role === 'SUPER_ADMIN';
 
   const playingSessions = useMemo(() => sessions.filter(s => s.status === SessionStatus.PLAYING), [sessions]);
   
+  // Filter logic for active sessions based on search term
+  const filteredPlayingSessions = useMemo(() => {
+    if (!searchTerm.trim()) return playingSessions;
+    
+    const lowerTerm = removeAccents(searchTerm.toLowerCase());
+    return playingSessions.filter(s => {
+      const player = players.find(p => p.id === s.playerId);
+      if (!player) return false;
+      
+      const name = removeAccents(player.name.toLowerCase());
+      const phone = player.phone || '';
+      
+      return name.includes(lowerTerm) || phone.includes(lowerTerm);
+    });
+  }, [playingSessions, searchTerm, players]);
+
   const stats = useMemo(() => {
     const today = new Date().toDateString();
     const finishedToday = sessions.filter(s => s.status === SessionStatus.FINISHED && new Date(s.checkOutTime || '').toDateString() === today);
@@ -53,19 +66,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   const selectedSS = useMemo(() => 
     selectedSession ? sessionServices.filter(ss => ss.sessionId === selectedSession.id) : [],
   [selectedSession, sessionServices]);
-
-  const handleGetAiInsight = async () => {
-    setIsAiLoading(true);
-    try {
-      const result = await getSmartInsight(stats);
-      setAiInsight(result);
-    } catch (error) {
-      console.error(error);
-      alert("Không thể kết nối với trợ lý AI lúc này.");
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
 
   // Helper component for elapsed time in list
   const ElapsedTimer: React.FC<{ startTime: string }> = ({ startTime }) => {
@@ -94,44 +94,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <h3 className="text-2xl font-black text-slate-800 tracking-tight">{isSuperAdmin ? 'Tổng quan Hệ thống' : 'Tổng quan hôm nay'}</h3>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Số liệu kinh doanh thời gian thực</p>
          </div>
-         <button 
-           onClick={handleGetAiInsight}
-           disabled={isAiLoading}
-           className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-5 py-2.5 rounded-2xl font-black text-xs shadow-lg shadow-indigo-500/30 hover:scale-105 transition-transform flex items-center gap-2"
-         >
-           {isAiLoading ? (
-             <i className="fa-solid fa-spinner animate-spin"></i>
-           ) : (
-             <i className="fa-solid fa-wand-magic-sparkles"></i>
-           )}
-           {isAiLoading ? 'ĐANG PHÂN TÍCH...' : 'PHÂN TÍCH AI'}
-         </button>
       </div>
-
-      {/* AI Insight Card */}
-      {aiInsight && (
-        <div className="bg-gradient-to-br from-violet-50 to-indigo-50 p-6 rounded-[2.5rem] border border-indigo-100 shadow-sm animate-in slide-in-from-top-4 fade-in duration-500">
-           <div className="flex items-start gap-4">
-              <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-xl text-indigo-600 shadow-sm shrink-0">
-                <i className="fa-solid fa-robot"></i>
-              </div>
-              <div className="flex-1">
-                 <h4 className="font-black text-indigo-900 text-lg mb-1">Trợ lý Quản lý thông minh</h4>
-                 <div className="space-y-3 mt-3">
-                    <div className="bg-white/60 p-4 rounded-2xl border border-indigo-100/50">
-                       <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">NHẬN XÉT</p>
-                       <p className="text-indigo-900 font-medium text-sm leading-relaxed">{aiInsight.insight}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
-                       <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mb-1">LỜI KHUYÊN</p>
-                       <p className="text-slate-800 font-bold text-sm leading-relaxed"><i className="fa-solid fa-check-circle text-emerald-500 mr-2"></i>{aiInsight.advice}</p>
-                    </div>
-                 </div>
-              </div>
-              <button onClick={() => setAiInsight(null)} className="text-indigo-300 hover:text-indigo-500"><i className="fa-solid fa-xmark"></i></button>
-           </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 flex items-center gap-5">
@@ -166,18 +129,41 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* VẬN HÀNH LƯỢT CHƠI - Ẩn đối với Super Admin */}
       {!isSuperAdmin && (
         <>
-          <div className="flex justify-between items-center pt-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pt-4">
             <div>
               <h3 className="text-xl font-black text-slate-800 tracking-tight">Vận hành lượt chơi</h3>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Quản lý khách ra vào và dịch vụ</p>
             </div>
+            
             <button 
               onClick={() => setShowCheckIn(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl shadow-blue-600/20 transition-all active:scale-95 group"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl shadow-blue-600/20 transition-all active:scale-95 group shrink-0 w-full md:w-auto justify-center"
             >
               <i className="fa-solid fa-user-plus group-hover:scale-110 transition-transform"></i>
               THÊM NGƯỜI CHƠI
             </button>
+          </div>
+
+          {/* Search Bar for Active Sessions */}
+          <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-2">
+            <div className="pl-4 text-slate-400">
+               <i className="fa-solid fa-magnifying-glass"></i>
+            </div>
+            <input 
+              type="text"
+              placeholder="Tìm người đang chơi theo tên hoặc SĐT..."
+              className="flex-1 py-3 bg-transparent border-none outline-none font-bold text-sm text-slate-700 placeholder:text-slate-300 placeholder:font-medium"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="px-4 py-2 mr-1 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl text-xs font-black transition-colors"
+              >
+                TẤT CẢ
+              </button>
+            )}
           </div>
 
           <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
@@ -193,19 +179,21 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {playingSessions.length === 0 ? (
+                  {filteredPlayingSessions.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-24 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 shadow-inner">
                             <i className="fa-solid fa-table-tennis-paddle-ball text-4xl text-gray-200"></i>
                           </div>
-                          <p className="font-black uppercase tracking-widest text-gray-300">Chưa có khách đang chơi</p>
+                          <p className="font-black uppercase tracking-widest text-gray-300">
+                            {searchTerm ? 'Không tìm thấy kết quả phù hợp' : 'Chưa có khách đang chơi'}
+                          </p>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    playingSessions.map(session => {
+                    filteredPlayingSessions.map(session => {
                       const player = players.find(p => p.id === session.playerId);
                       const ss = sessionServices.filter(s => s.sessionId === session.id);
                       const total = ss.reduce((sum, item) => sum + item.totalAmount, 0);

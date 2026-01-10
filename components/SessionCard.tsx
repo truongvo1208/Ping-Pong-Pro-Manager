@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Session, Player, Service, SessionService, SessionStatus, ServiceStatus } from '../types';
 
 interface SessionCardProps {
@@ -176,7 +177,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
                 {elapsedDisplay}
               </div>
             </div>
-            {/* Top Close Button (Optional/Secondary now) */}
             <button 
               onClick={onClose}
               className="w-10 h-10 rounded-full bg-white text-slate-300 hover:text-slate-500 hover:bg-slate-50 transition-all flex items-center justify-center shadow-sm border border-slate-100 ml-2"
@@ -197,84 +197,12 @@ const SessionCard: React.FC<SessionCardProps> = ({
           
           <div className="relative">
             <button 
-              onClick={() => setShowServices(!showServices)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all ${
-                showServices ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50 shadow-sm'
-              }`}
+              onClick={() => setShowServices(true)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-black transition-all bg-white text-blue-600 border border-blue-100 hover:bg-blue-50 shadow-sm"
             >
-              <i className={`fa-solid ${showServices ? 'fa-xmark' : 'fa-plus'}`}></i>
-              {showServices ? 'ĐÓNG' : 'THÊM DỊCH VỤ'}
+              <i className="fa-solid fa-plus"></i>
+              THÊM DỊCH VỤ
             </button>
-
-            {showServices && (
-              <>
-                <div className="fixed inset-0 z-40 bg-transparent" onClick={() => setShowServices(false)}></div>
-                <div className="absolute right-0 top-full mt-3 w-96 bg-white border border-slate-100 rounded-[2rem] shadow-2xl z-50 animate-in fade-in zoom-in duration-200 origin-top-right flex flex-col max-h-[400px]">
-                  <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Chọn dịch vụ cần thêm</p>
-                  </div>
-                  
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                    {activeServices.length > 0 ? (
-                      activeServices.map(s => {
-                        const count = pendingItems[s.id] || 0;
-                        return (
-                          <div
-                            key={s.id}
-                            className={`flex justify-between items-center p-3 rounded-2xl transition-all mb-1 ${
-                              count > 0 ? 'bg-blue-50 border border-blue-100' : 'hover:bg-slate-50 border border-transparent'
-                            }`}
-                          >
-                            <div className="flex-1">
-                               <p className="text-sm font-bold text-slate-700">{s.name}</p>
-                               <p className="text-[10px] font-black text-slate-400">{s.price.toLocaleString()}đ</p>
-                            </div>
-                            
-                            <div className="flex items-center bg-white rounded-xl border border-slate-100 shadow-sm h-9">
-                               <button 
-                                 onClick={() => handlePendingChange(s.id, -1)}
-                                 className={`w-8 h-full flex items-center justify-center transition-colors rounded-l-xl ${count > 0 ? 'text-red-500 hover:bg-red-50' : 'text-slate-300'}`}
-                                 disabled={count === 0}
-                               >
-                                 <i className="fa-solid fa-minus text-[10px]"></i>
-                               </button>
-                               <div className={`w-8 text-center text-sm font-black ${count > 0 ? 'text-blue-600' : 'text-slate-300'}`}>
-                                 {count}
-                               </div>
-                               <button 
-                                 onClick={() => handlePendingChange(s.id, 1)}
-                                 className="w-8 h-full flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors rounded-r-xl"
-                               >
-                                 <i className="fa-solid fa-plus text-[10px]"></i>
-                               </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="px-6 py-8 text-center text-xs text-slate-400 italic">
-                        <i className="fa-solid fa-box-open text-2xl mb-2 opacity-20 block"></i>
-                        Kho trống
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="p-4 border-t border-slate-50 bg-slate-50/50">
-                     <div className="flex justify-between items-center mb-3 px-2">
-                        <span className="text-[10px] font-black text-slate-400 uppercase">Tạm tính</span>
-                        <span className="font-black text-slate-800">{pendingTotalAmount.toLocaleString()}đ</span>
-                     </div>
-                     <button 
-                        onClick={handleBatchAdd}
-                        disabled={Object.keys(pendingItems).length === 0}
-                        className="w-full py-3 bg-blue-600 text-white rounded-xl font-black text-xs shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:shadow-none hover:bg-blue-700 active:scale-95 transition-all"
-                     >
-                        XÁC NHẬN THÊM ({Object.keys(pendingItems).length})
-                     </button>
-                  </div>
-                </div>
-              </>
-            )}
           </div>
         </div>
 
@@ -361,6 +289,90 @@ const SessionCard: React.FC<SessionCardProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Portal Modal cho Thêm Dịch Vụ - Render bên ngoài DOM hiện tại để tránh bị che */}
+      {showServices && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowServices(false)}></div>
+           <div className="relative w-full max-w-md bg-white rounded-[2rem] shadow-2xl flex flex-col max-h-[85vh] animate-in zoom-in duration-200 border border-slate-100 overflow-hidden">
+              
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+                 <div>
+                    <h3 className="text-lg font-black text-slate-800">Thêm dịch vụ</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Chọn món từ menu kho</p>
+                 </div>
+                 <button onClick={() => setShowServices(false)} className="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-slate-600 flex items-center justify-center shadow-sm">
+                    <i className="fa-solid fa-xmark"></i>
+                 </button>
+              </div>
+
+              {/* Action Bar (Top) */}
+              <div className="p-5 border-b border-slate-50 bg-white z-10 shadow-sm">
+                  <div className="flex justify-between items-center mb-3 px-1">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tạm tính ({Object.keys(pendingItems).length} món)</span>
+                    <span className="font-black text-xl text-slate-800">{pendingTotalAmount.toLocaleString()}đ</span>
+                  </div>
+                  <button 
+                    onClick={handleBatchAdd}
+                    disabled={Object.keys(pendingItems).length === 0}
+                    className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-black text-sm shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:shadow-none hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>XÁC NHẬN THÊM</span>
+                    <i className="fa-solid fa-check"></i>
+                  </button>
+              </div>
+
+              {/* Service List */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-2">
+                {activeServices.length > 0 ? (
+                  activeServices.map(s => {
+                    const count = pendingItems[s.id] || 0;
+                    return (
+                      <div
+                        key={s.id}
+                        className={`flex justify-between items-center p-3 rounded-2xl transition-all ${
+                          count > 0 ? 'bg-blue-50 border border-blue-100 shadow-sm' : 'bg-white border border-transparent hover:bg-slate-50 hover:border-slate-100'
+                        }`}
+                      >
+                        <div className="flex-1">
+                           <p className="text-sm font-bold text-slate-700">{s.name}</p>
+                           <p className="text-[10px] font-black text-slate-400">{s.price.toLocaleString()}đ / {s.unit}</p>
+                        </div>
+                        
+                        <div className="flex items-center bg-white rounded-xl border border-slate-100 shadow-sm h-9">
+                           <button 
+                             onClick={() => handlePendingChange(s.id, -1)}
+                             className={`w-9 h-full flex items-center justify-center transition-colors rounded-l-xl ${count > 0 ? 'text-red-500 hover:bg-red-50' : 'text-slate-300'}`}
+                             disabled={count === 0}
+                           >
+                             <i className="fa-solid fa-minus text-[10px]"></i>
+                           </button>
+                           <div className={`w-8 text-center text-sm font-black ${count > 0 ? 'text-blue-600' : 'text-slate-300'}`}>
+                             {count}
+                           </div>
+                           <button 
+                             onClick={() => handlePendingChange(s.id, 1)}
+                             className="w-9 h-full flex items-center justify-center text-blue-600 hover:bg-blue-50 transition-colors rounded-r-xl"
+                           >
+                             <i className="fa-solid fa-plus text-[10px]"></i>
+                           </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="px-6 py-12 text-center text-xs text-slate-400 italic flex flex-col items-center">
+                    <i className="fa-solid fa-box-open text-3xl mb-3 opacity-20"></i>
+                    Kho dịch vụ đang trống
+                  </div>
+                )}
+              </div>
+           </div>
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 };
